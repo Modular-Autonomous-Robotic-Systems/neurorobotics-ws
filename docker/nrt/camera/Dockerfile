@@ -62,6 +62,13 @@ RUN if [ "$(uname -m)" = "x86_64" ]; then \
 		apt-get update && apt-get install -y ros-humble-octomap ros-humble-octomap-msgs ros-humble-octomap-msgs-dbgsym ros-humble-octomap-ros ros-humble-octomap-dbgsym ros-humble-octomap-server ros-humble-octomap-rviz-plugins ros-humble-octomap-rviz-plugins-dbgsym ros-humble-octomap-ros-dbgsym ros-humble-octomap-server-dbgsym ros-humble-octomap-mapping; \
 	fi
 
+RUN git clone https://github.com/flann-lib/flann.git && \
+		cd flann && \
+		mkdir -p build && \
+		cd build && \
+		cmake .. && \
+		make -j 16 && \
+		make install
 
 WORKDIR /ws
 ENTRYPOINT ["/ros_entrypoint.sh"]
