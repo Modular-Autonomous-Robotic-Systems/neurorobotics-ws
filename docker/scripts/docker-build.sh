@@ -13,3 +13,4 @@ then
 else
     docker buildx build $3 --progress plain --platform $1 -t $2 --push
 fi
+# Add flag --no-cache in the aforementioned commands to run without use of docker cache
