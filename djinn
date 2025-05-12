@@ -2,21 +2,30 @@
 
 
 # data.sh declares all variables and data required for djinn and its derivative scripts
+# available variables are 
+# 1. config_file
+# 2. statefile
+# 3. last_run_sitl_env
+# available methods are
+# 1. save_state
 source $NRT_WS/scripts/helpers/data.sh
 # exec.sh declares all execution functions required for djinn and its derivative scripts
+# available methods are
+# 1. iexec
+# 2. iexec_ros
+# 3. iexec_kalibr
 source $NRT_WS/scripts/helpers/exec.sh
-
-build_image(){
-	if [[ -z "$(docker images -q $2 2> /dev/null)" ]]
-	then
-		if [[ "$(docker manifest inspect $2 > /dev/null 2>&1 && echo yes || echo no)" == "no" ]]
-		then
-			$NRT_WS/docker/scripts/docker-build.sh $1 $2 $3 $4 
-		else
-			docker pull $2
-		fi
-	fi
-}
+# docker.sh declares all helper functions related to docker required for djinn and its derivative scripts
+# available methods are
+# 1. build_image
+source $NRT_WS/scripts/helpers/docker.sh
+# sitl.sh declares all helper functions required for djinn and its derivative scripts
+# available methods are
+# 1. build_sitl_docker_image
+# 2. build_sitl_docker_image
+# 3. start_simulation
+# 4. start_sitl_container
+source $NRT_WS/scripts/helpers/sitl.sh
 
 cd $NRT_WS
 
@@ -58,86 +67,57 @@ then
 			echo "============ BUILDING Image ============="
 			if [[ "$3" == "nrt" ]]
 			then
-				echo "============ BUILDING Base Image ============="
-				image="$userName/nrt:base"
-				filepath="$NRT_WS/docker/base/"
-				build_image $platform $image $filepath
-				echo "============ BUILDING ROS Image ============="
-				image="$userName/nrt:ros"
-				filepath="$NRT_WS/docker/base/ros"
-				platform="linux/amd64,linux/arm64"
-				build_image $platform $image $filepath 
-				echo "============ BUILDING NRT Pangolin Image ============="
-				image="$userName/nrt:pangolin"
-				filepath="$NRT_WS/docker/nrt/pangolin"
-				platform="linux/amd64,linux/arm64"
-				build_image $platform $image $filepath 
-				echo "============ BUILDING NRT VERSION:$VERSION Image ============="
-				image="$userName/nrt:$VERSION"
+				# echo "============ BUILDING Base Image ============="
+				# image="$userName/nrt:base"
+				# filepath="$NRT_WS/docker/base/"
+				# build_image $platform $image $filepath
+				# echo "============ BUILDING ROS Image ============="
+				# image="$userName/nrt:ros"
+				# filepath="$NRT_WS/docker/base/ros"
+				# platform="linux/amd64,linux/arm64"
+				# build_image $platform $image $filepath 
+				# echo "============ BUILDING NRT Pangolin Image ============="
+				# image="$userName/nrt:pangolin"
+				# filepath="$NRT_WS/docker/nrt/pangolin"
+				# platform="linux/amd64,linux/arm64"
+				# build_image $platform $image $filepath 
+				echo "============ BUILDING NRT Camera Image ============="
+				image="$userName/nrt:camera"
 				filepath="$NRT_WS/docker/nrt/camera"
 				platform="linux/amd64,linux/arm64"
 				container_name="nrt_container"
+				# build_image $platform $image $filepath 
+				echo "============ BUILDING NRT VERSION:$VERSION Image ============="
+				image="$userName/nrt:$VERSION"
+				filepath="$NRT_WS/docker/nrt/ardupilot"
+				platform="linux/amd64,linux/arm64"
+				container_name="nrt_container"
+				setup_airsim_ros_pkgs_for_docker_build "ardupilot"
 				build_image $platform $image $filepath 
-				echo "============ BUILDING SIMULATION Image ============="
-				cd $WS_PATH/envs/ue5/AirSim/docker/
-				python3 build_airsim_image.py --source --target_image="shandilya1998/nrt_airsim:0.0.1"
-				cd -	
-				source $NRT_WS/scripts/start.sh "$NRT_WS" "$container_name" "$image"
-                iexec nrt_container "ls && echo \"Starting Container Setup\" && /ws/docker/scripts/docker-setup.sh $3 $userEmail $userName"
-				if [[ ! -f "ext/QGroundControl.AppImage" ]]
-				then
-					iexec nrt_container "wget https://d176tv9ibo4jno.cloudfront.net/latest/QGroundControl.AppImage -O /ws/ext/QGroundControl.AppImage"
-					iexec nrt_container "chmod +x /ws/ext/QGroundControl.AppImage"
-				fi
+				iexec init_container "rm -rf /ws/docker/nrt/ardupilot/airsim_ws"
+				docker stop init_container
 			elif [[ "$3" == "airsim"  ]]
 			then
 				echo "============ BUILDING SIMULATION Image ============="
-				cd $NRT_WS/envs/ue5/AirSim/docker/
-				python3 build_airsim_image.py --source --target_image="shandilya1998/nrt_airsim:0.0.1"
-				cd -
-			elif [[ "$3" == "ardupilot" ]]
+				build_airsim_docker_image
+			elif [[ "$3" == "sitl" ]]
 			then
-				# ensure this command is run after the `djinn init docker nrt` has been successfully run
-				image_base="shandilya1998/nrt_ardupilot:base"
-				filepath_base="ext/ardupilot/"
-				image="shandilya1998/nrt_ardupilot:0.0.1"
-				filepath="docker/ardupilot"
-				platform="linux/amd64"
-				if [[ ! -d "$filepath_base" ]]
+				# This step assumes that `djinn init docker nrt` has been run
+				echo "============ BUILDING SIMULATION Image ============="
+				build_airsim_docker_image
+				echo "============ BUILDING SITL BRIDGE Image ============="
+				setup_airsim_ros_pkgs_for_docker_build "sitl"
+				build_sitl_docker_image
+				iexec init_container "rm -rf /ws/docker/nrt/sitl/airsim_ws"
+				if [[ ! -f "ext/QGroundControl.AppImage" ]]
 				then
-					echo "ArduPilot does not exist, so cloning the repository"
-					cd $NRT_WS/ext
-					git clone git@github.com:ArduPilot/ardupilot.git
-					cd ardupilot
-					git submodule update --init --recursive
-					cd $NRT_WS
+					echo "============ Fetching QGroundControl ============="
+					iexec init_container "wget https://d176tv9ibo4jno.cloudfront.net/latest/QGroundControl.AppImage -O /ws/ext/QGroundControl.AppImage"
+					iexec init_container "chmod +x /ws/ext/QGroundControl.AppImage"
 				else
-					echo "ArduPilot exits no need to clone"
+					echo "============ Not Fetching QGroundControl. It Exists. ============="
 				fi
-				if [[ -n "$4" ]]
-				then
-					if [[ "$4" == "aarch64"  ]]
-					then
-						platform="linux/arm64"
-					elif [[ "$4" == "x86_64" ]]
-					then
-						platform="linux/amd64"
-					elif [[ "$4" == "all" ]]
-					then
-						platform="linux/amd64,linux/arm64"
-					else
-						echo "unsupported platform"
-						cd $WS_PATH
-						exit
-					fi
-				fi
-				build_image $platform $image_base $filepath_base "NRT_WS=$NRT_WS"
-				build_image $platform $image $filepath "NRT_WS=$NRT_WS"
-				docker run -it --rm -d -v $NRT_WS/ext/ardupilot:/ardupilot --name ardupilot_init_container $image bash
-				iexec ardupilot_container "cd /ardupilot && git checkout Copter-4.5.7"
-				iexec ardupilot_container "cd /ardupilot && git submodule update --init --recursive"
-				iexec ardupilot_init_container "cd /ardupilot && ./waf configure --board sitl && ./waf copter"
-				docker stop ardupilot_init_container
+				docker stop init_container
 			elif [[ "$3" == "kalibr" ]]
 			then
 				echo "============ BUILDING Kalibr Image ============="
@@ -168,17 +148,15 @@ then
 			iexec_ros nrt_container "/ws/scripts/build_ros_packages.sh"
 		elif [[ "$2" == "airsim" ]]
 		then
-			xhost +local:docker
-			cd $NRT_WS/envs/ue5/AirSim/docker/
- 			source $NRT_WS/envs/ue5/scripts/start.sh $NRT_WS/envs/ue5/AirSim/Unreal/Environments
-			cd -
-		elif [[ "$2" == "ardupilot" ]]
+			if [[ -n "$3" ]]
+			then
+				start_simulation $3
+			else
+				start_simulation "nature"
+			fi
+		elif [[ "$2" == "sitl_bridge" ]]
 		then
-			# assuming that currently we are only building for drones
-			docker run --rm --net=host --privileged -it -d -v $NRT_WS:/ws -v $NRT_WS/ext/ardupilot:/ardupilot --name ardupilot_container shandilya1998/nrt_ardupilot:0.0.1 bash
-			iexec ardupilot_container "cd /ardupilot && git checkout Copter-4.5.7"
-			iexec ardupilot_container "cd /ardupilot && git submodule update --init --recursive"
-			iexec ardupilot_container "cd /ardupilot && ./waf configure --board sitl && ./waf copter"
+			start_sitl_container
 		elif [[ "$2" == "kalibr" ]]
 		then
 			echo "============ Initialising Kalibr Container ============="
@@ -253,8 +231,20 @@ then
 	elif [[ "$2" == "sitl" ]]
 	then
 		echo "starting sitl"
+		start_simulation "nature"
+		echo "Starting Ardupilot" 	
+		start_sitl_container
+		# gnome-terminal --title "ArduPilot" -- bash -c "$NRT_WS/envs/scripts/run_ardupilot.sh; exec bash"
+		gnome-terminal --title "SITL Bridge" -- bash -c "$NRT_WS/envs/scripts/run_sitl_ardupilot_bridge.sh; exec bash"
+		sleep 10
 		gnome-terminal --title "AirSim" -- bash -c "$NRT_WS/envs/ue5/scripts/run_airsim.sh; exec bash"
-		gnome-terminal --title "ArduPilot" -- bash -c "$NRT_WS/envs/scripts/run_ardupilot.sh; exec bash"
+		sleep 10
+		# source $NRT_WS/envs/scripts/run_sitl_ardupilot_bridge.sh
+		iexec_ros nrt_container "cd /airsim_ws && \ 
+			source install/setup.bash && \ 
+			ros2 launch airsim_ros_pkgs airsim_node.launch.py host_ip:=127.0.0.1"
+		stop_sitl_container
+		stop_simulation
 	fi
 
 elif [[ $1 == "kill" ]]
@@ -286,7 +276,12 @@ elif [[ "$1" == "down" ]]
 then
 	if [[ -n "$2" ]]
 	then
-		docker stop "${2}_container"
+		if [[ "$2" == "airsim" ]]
+		then
+			docker stop airsim_container && docker rm airsim_container
+		else
+			docker stop "${2}_container"
+		fi
 	else
 		docker stop base_container nrt_container sitl_container vision_tools_container bfx_container
 	fi
