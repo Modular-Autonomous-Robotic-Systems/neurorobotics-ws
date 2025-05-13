@@ -14,6 +14,7 @@ source $NRT_WS/scripts/helpers/data.sh
 # 1. iexec
 # 2. iexec_ros
 # 3. iexec_kalibr
+# 4. terminate_process
 source $NRT_WS/scripts/helpers/exec.sh
 # docker.sh declares all helper functions related to docker required for djinn and its derivative scripts
 # available methods are
@@ -235,16 +236,15 @@ then
 		echo "Starting Ardupilot" 	
 		start_sitl_container
 		# gnome-terminal --title "ArduPilot" -- bash -c "$NRT_WS/envs/scripts/run_ardupilot.sh; exec bash"
-		gnome-terminal --title "SITL Bridge" -- bash -c "$NRT_WS/envs/scripts/run_sitl_ardupilot_bridge.sh; exec bash"
+		gnome-terminal --title "SITL Bridge" -- bash -c "$NRT_WS/envs/scripts/run_sitl_ardupilot_bridge.sh"
 		sleep 10
-		gnome-terminal --title "AirSim" -- bash -c "$NRT_WS/envs/ue5/scripts/run_airsim.sh; exec bash"
+		gnome-terminal --title "AirSim" -- bash -c "$NRT_WS/envs/ue5/scripts/run_airsim.sh"
 		sleep 10
 		# source $NRT_WS/envs/scripts/run_sitl_ardupilot_bridge.sh
-		iexec_ros nrt_container "cd /airsim_ws && \ 
-			source install/setup.bash && \ 
-			ros2 launch airsim_ros_pkgs airsim_node.launch.py host_ip:=127.0.0.1"
-		stop_sitl_container
-		stop_simulation
+		gnome-terminal --title "QGroundControl" -- bash -c "$NRT_WS/ext/QGroundControl.AppImage"
+		gnome-terminal --title "AirSim ROS bridge" -- bash -c "$NRT_WS/envs/scripts/run_airsim_ros_pkgs.sh"
+		# stop_sitl_container
+		# stop_simulation
 	fi
 
 elif [[ $1 == "kill" ]]
@@ -253,13 +253,10 @@ then
 	if [[ "$2" == "sitl" ]]
 	then
 		echo "Killing SITL processes"
-		iexec sitl_container "ps -eawf | grep NRT | grep -v grep | awk '{print \$2}' | xargs -r kill -9"
-		# ps -ef | grep QGroundControl | grep -v grep | awk '{print $2}' | xargs -r kill -9
-		if [[ ! -z "$last_run_sitl_env"  ]]
-		then
-			ps -eawf | grep "$last_run_sitl_env" | grep -v grep | awk '{print $2}' | xargs -r kill -9
-		fi
-		echo "Done Killing SITL processes"
+		stop_sitl_container
+		stop_simulation
+		terminate_process "QGroundControl"
+		iexec nrt_container "ps -ef | grep airsim_ros_pkgs | grep -v grep | awk '{print \$2}' | xargs -r kill -9"
 	elif [[ $2 == "airsim" ]]
 	then
 		if [[ ! -z "$last_run_sitl_env"  ]]

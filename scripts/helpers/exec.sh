@@ -14,3 +14,8 @@ iexec_ros(){
 iexec_kalibr(){
 			time docker container exec -it "$1" /bin/bash -l -c "source /opt/ros/noetic/setup.bash && source \$WORKSPACE/devel/setup.bash && $2"
         }
+
+terminate_process(){
+			local process_name=$1
+			ps -ef | grep $process_name | grep -v grep | awk '{print $2}' | xargs -r kill -9
+		}
