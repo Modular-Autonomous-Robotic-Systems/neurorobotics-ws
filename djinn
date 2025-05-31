@@ -1,49 +1,32 @@
 #!/bin/bash
 
-config_file=$NRT_WS/.djinn_config
-# Refer to the following link for information about state management in bash using a statefile
-# https://stackoverflow.com/questions/63084354/how-to-store-state-between-two-consecutive-runs-of-a-bash-script
-statefile="/tmp/djinn_state"
-last_run_sitl_env=""
-# xhost +
-echo "WORKSPACE PATH: $NRT_WS"
-echo "DJINN MODE: $DJINN_MODE"
 
-save_state () {
-  typeset -p "$@" >"$statefile"
-}
-
-# Source the statefile to restore state
-. "$statefile" 2>/dev/null || :
-
-# Set save_state call on script exit to automatically persist state
-# To be enabled later when multiple states are required
-# trap 'save_state last_run_sitl_env' EXIT
-
-iexec(){
-            time docker container exec -it "$1" /bin/bash -l -c "$2"
-        }
-
-iexec_ros(){
-			export $(grep -v '^#' $config_file | xargs)
-			time docker container exec -it "$1" /bin/bash -l -c "source /opt/ros/${ROS_VERSION}/setup.bash && $2"
-        }
-
-iexec_kalibr(){
-			time docker container exec -it "$1" /bin/bash -l -c "source /opt/ros/noetic/setup.bash && source \$WORKSPACE/devel/setup.bash && $2"
-        }
-
-build_image(){
-	# if [[ -z "$(docker images -q $2 2> /dev/null)" ]]
-	# then
-	# 	if [[ "$(docker manifest inspect $2 > /dev/null 2>&1 && echo yes || echo no)" == "no" ]]
-	# 	then
-			$NRT_WS/scripts/docker-build.sh $1 $2 $3 $4 
-	# 	else
-	# 		docker pull $2
-	# 	fi
-	# fi
-}
+# data.sh declares all variables and data required for djinn and its derivative scripts
+# available variables are 
+# 1. config_file
+# 2. statefile
+# 3. last_run_sitl_env
+# available methods are
+# 1. save_state
+source $NRT_WS/scripts/helpers/data.sh
+# exec.sh declares all execution functions required for djinn and its derivative scripts
+# available methods are
+# 1. iexec
+# 2. iexec_ros
+# 3. iexec_kalibr
+# 4. terminate_process
+source $NRT_WS/scripts/helpers/exec.sh
+# docker.sh declares all helper functions related to docker required for djinn and its derivative scripts
+# available methods are
+# 1. build_image
+source $NRT_WS/scripts/helpers/docker.sh
+# sitl.sh declares all helper functions required for djinn and its derivative scripts
+# available methods are
+# 1. build_sitl_docker_image
+# 2. build_sitl_docker_image
+# 3. start_simulation
+# 4. start_sitl_container
+source $NRT_WS/scripts/helpers/sitl.sh
 
 cd $NRT_WS
 
@@ -85,28 +68,57 @@ then
 			echo "============ BUILDING Image ============="
 			if [[ "$3" == "nrt" ]]
 			then
-				echo "============ BUILDING Base Image ============="
-				image="$userName/nrt:base"
-				filepath="$NRT_WS/docker/base/"
-				build_image $platform $image $filepath
-				echo "============ BUILDING ROS Image ============="
-				image="$userName/nrt:ros"
-				filepath="$NRT_WS/docker/base/ros"
-				platform="linux/amd64,linux/arm64"
-				build_image $platform $image $filepath 
-				echo "============ BUILDING NRT Pangolin Image ============="
-				image="$userName/nrt:pangolin"
-				filepath="$NRT_WS/docker/nrt/pangolin"
-				platform="linux/amd64,linux/arm64"
-				build_image $platform $image $filepath 
-				echo "============ BUILDING NRT VERSION:$VERSION Image ============="
-				image="$userName/nrt:$VERSION"
+				# echo "============ BUILDING Base Image ============="
+				# image="$userName/nrt:base"
+				# filepath="$NRT_WS/docker/base/"
+				# build_image $platform $image $filepath
+				# echo "============ BUILDING ROS Image ============="
+				# image="$userName/nrt:ros"
+				# filepath="$NRT_WS/docker/base/ros"
+				# platform="linux/amd64,linux/arm64"
+				# build_image $platform $image $filepath 
+				# echo "============ BUILDING NRT Pangolin Image ============="
+				# image="$userName/nrt:pangolin"
+				# filepath="$NRT_WS/docker/nrt/pangolin"
+				# platform="linux/amd64,linux/arm64"
+				# build_image $platform $image $filepath 
+				echo "============ BUILDING NRT Camera Image ============="
+				image="$userName/nrt:camera"
 				filepath="$NRT_WS/docker/nrt/camera"
 				platform="linux/amd64,linux/arm64"
 				container_name="nrt_container"
+				# build_image $platform $image $filepath 
+				echo "============ BUILDING NRT VERSION:$VERSION Image ============="
+				image="$userName/nrt:$VERSION"
+				filepath="$NRT_WS/docker/nrt/ardupilot"
+				platform="linux/amd64,linux/arm64"
+				container_name="nrt_container"
+				setup_airsim_ros_pkgs_for_docker_build "ardupilot"
 				build_image $platform $image $filepath 
-				source $NRT_WS/scripts/start.sh "$NRT_WS" "$container_name" "$image"
-                iexec nrt_container "ls && echo \"Starting Container Setup\" && /ws/scripts/docker-setup.sh $3 $userEmail $userName"
+				iexec init_container "rm -rf /ws/docker/nrt/ardupilot/airsim_ws"
+				docker stop init_container
+			elif [[ "$3" == "airsim"  ]]
+			then
+				echo "============ BUILDING SIMULATION Image ============="
+				build_airsim_docker_image
+			elif [[ "$3" == "sitl" ]]
+			then
+				# This step assumes that `djinn init docker nrt` has been run
+				echo "============ BUILDING SIMULATION Image ============="
+				build_airsim_docker_image
+				echo "============ BUILDING SITL BRIDGE Image ============="
+				setup_airsim_ros_pkgs_for_docker_build "sitl"
+				build_sitl_docker_image
+				iexec init_container "rm -rf /ws/docker/nrt/sitl/airsim_ws"
+				if [[ ! -f "ext/QGroundControl.AppImage" ]]
+				then
+					echo "============ Fetching QGroundControl ============="
+					iexec init_container "wget https://d176tv9ibo4jno.cloudfront.net/latest/QGroundControl.AppImage -O /ws/ext/QGroundControl.AppImage"
+					iexec init_container "chmod +x /ws/ext/QGroundControl.AppImage"
+				else
+					echo "============ Not Fetching QGroundControl. It Exists. ============="
+				fi
+				docker stop init_container
 			elif [[ "$3" == "kalibr" ]]
 			then
 				echo "============ BUILDING Kalibr Image ============="
@@ -133,8 +145,19 @@ then
 		then
 			echo "=============== Initialising NRT Base Container ================"
 			source $NRT_WS/scripts/start.sh $NRT_WS nrt_container shandilya1998/nrt:$VERSION
-			iexec_ros nrt_container "ls && echo \"Starting Container Setup\" && /ws/scripts/docker-setup.sh $2 $userEmail $userName" 
+			iexec_ros nrt_container "ls && echo \"Starting Container Setup\" && /ws/scripts/git-setup.sh $2 $userEmail $userName" 
 			iexec_ros nrt_container "/ws/scripts/build_ros_packages.sh"
+		elif [[ "$2" == "airsim" ]]
+		then
+			if [[ -n "$3" ]]
+			then
+				start_simulation $3
+			else
+				start_simulation "nature"
+			fi
+		elif [[ "$2" == "sitl_bridge" ]]
+		then
+			start_sitl_container
 		elif [[ "$2" == "kalibr" ]]
 		then
 			echo "============ Initialising Kalibr Container ============="
@@ -142,7 +165,7 @@ then
 		fi
 	else
 		source $NRT_WS/scripts/start.sh $NRT_WS nrt_container shandilya1998/nrt:$VERSION
-		iexec_ros nrt_container "ls && echo \"Starting Container Setup\" && /ws/scripts/docker-setup.sh $2 $userEmail $userName" 
+		iexec_ros nrt_container "ls && echo \"Starting Container Setup\" && /ws/scripts/git-setup.sh $2 $userEmail $userName" 
 		iexec_ros nrt_container "./scripts/build.sh && ./scripts/build_ros_packages.sh && cd ros_ws && source install/local_setup.bash && cd .."
 	fi
 
@@ -162,11 +185,28 @@ then
 			iexec_ros nrt_container "./scripts/build_ros_packages.sh"
 		elif [[ "$2" == "docker" ]]
 		then
-			platform="linux/amd64,linux/arm64"
 			image="$3"
 			filepath="$4"
+			platform="linux/amd64,linux/arm64"
+			if [[ -n "$5" ]]
+			then
+				if [[ "$5" == "aarch64"  ]]
+				then
+					platform="linux/arm64"
+				elif [[ "$5" == "x86_64" ]]
+				then
+					platform="linux/amd64"
+				elif [[ "$5" == "all" ]]
+				then
+					platform="linux/amd64,linux/arm64"
+				else
+					echo "unsupported platform"
+					cd $WS_PATH
+					exit
+				fi
+			fi
 			# build_image $platform $image $filepath "NRT_WS=$NRT_WS"
-			source $NRT_WS/scripts/docker-build.sh $platform $image $filepath "NRT_WS=$NRT_WS" 
+			source $NRT_WS/docker/scripts/docker-build.sh $platform $image $filepath "NRT_WS=$NRT_WS" 
 		fi
 	fi
 
@@ -189,6 +229,24 @@ then
 	elif [[ "$2" == "tello-orbslam3" ]]
 	then
 		iexec_ros nrt_container "source /ws/ros_ws/install/setup.bash && ros2 launch controllers tello_orbslam3_mono_launch.py"
+	elif [[ "$2" == "sitl" ]]
+	then
+		echo "starting sitl"
+		start_simulation "nature"
+		echo "Starting Ardupilot" 	
+		start_sitl_container
+		# gnome-terminal --title "ArduPilot" -- bash -c "$NRT_WS/envs/scripts/run_ardupilot.sh; exec bash"
+		gnome-terminal --title "AirSim" -- bash -c "$NRT_WS/envs/ue5/scripts/run_airsim.sh;"
+		sleep 3
+		# gnome-terminal --title "SITL Bridge" -- bash -c "$NRT_WS/envs/scripts/run_ardupilot_airsim_ros_sitl.sh"
+		# gnome-terminal --title "AirSim ROS bridge" -- bash -c "$NRT_WS/envs/scripts/run_airsim_ros_pkgs.sh"
+		# sleep 3
+		# gnome-terminal --title "SITL Bridge" -- bash -c "$NRT_WS/envs/scripts/run_sitl_ardupilot_bridge.sh"
+		gnome-terminal --title "SITL Bridge" -- bash -c "$NRT_WS/envs/scripts/run_ardupilot_airsim_ros_sitl.sh;"
+		# source $NRT_WS/envs/scripts/run_sitl_ardupilot_bridge.sh
+		gnome-terminal --title "QGroundControl" -- bash -c "$NRT_WS/ext/QGroundControl.AppImage"
+		# stop_sitl_container
+		# stop_simulation
 	fi
 
 elif [[ $1 == "kill" ]]
@@ -197,13 +255,10 @@ then
 	if [[ "$2" == "sitl" ]]
 	then
 		echo "Killing SITL processes"
-		iexec sitl_container "ps -eawf | grep NRT | grep -v grep | awk '{print \$2}' | xargs -r kill -9"
-		# ps -ef | grep QGroundControl | grep -v grep | awk '{print $2}' | xargs -r kill -9
-		if [[ ! -z "$last_run_sitl_env"  ]]
-		then
-			ps -eawf | grep "$last_run_sitl_env" | grep -v grep | awk '{print $2}' | xargs -r kill -9
-		fi
-		echo "Done Killing SITL processes"
+		stop_sitl_container
+		stop_simulation
+		terminate_process "QGroundControl"
+		iexec nrt_container "ps -ef | grep airsim_ros_pkgs | grep -v grep | awk '{print \$2}' | xargs -r kill -9"
 	elif [[ $2 == "airsim" ]]
 	then
 		if [[ ! -z "$last_run_sitl_env"  ]]
@@ -220,7 +275,12 @@ elif [[ "$1" == "down" ]]
 then
 	if [[ -n "$2" ]]
 	then
-		docker stop "${2}_container"
+		if [[ "$2" == "airsim" ]]
+		then
+			docker stop airsim_container && docker rm airsim_container
+		else
+			docker stop "${2}_container"
+		fi
 	else
 		docker stop base_container nrt_container sitl_container vision_tools_container bfx_container
 	fi

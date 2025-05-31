@@ -1,9 +1,16 @@
 [submodule "ros_ws"]
 	path = ros_ws
 	url = git@github.com:shandilya1998/neurorobotics-toolkit.git
+	branch = master
 [submodule "ext/calibration/kalibr"]
 	path = ext/calibration/kalibr
 	url = git@github.com:ethz-asl/kalibr.git
 [submodule "ext/calibration/allan_variance_ros"]
 	path = ext/calibration/allan_variance_ros
 	url = git@github.com:ori-drs/allan_variance_ros.git
+[submodule "docker/ardupilot/ardupilot_dev_docker"]
+	path = docker/ardupilot/ardupilot_dev_docker
+	url = git@github.com:ArduPilot/ardupilot_dev_docker.git
+[submodule "envs/ue5/AirSim"]
+	path = envs/ue5/AirSim
+	url = git@github.com:shandilya1998/AirSim.git

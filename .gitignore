@@ -1,7 +1,8 @@
-envs/
 *__pycache__/
 temp/
 *.log
 *.out
 .ssh
 .djinn_config
+*QGroundControl.AppImage
+ext/ardupilot
