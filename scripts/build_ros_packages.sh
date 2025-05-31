@@ -3,7 +3,8 @@
 export CMAKE_PREFIX_PATH=/Pangolin/build:$CMAKE_PREFIX_PATH
 export CMAKE_PREFIX_PATH=/opencv:$CMAKE_PREFIX_PATH
 
-
+source /ardu_ws/install/setup.bash
+source /airsim_ws/install/setup.bash
 
 echo "===============Building ROS2 Package=============="
 cd /ws/ros_ws

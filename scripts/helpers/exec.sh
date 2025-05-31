@@ -19,3 +19,11 @@ terminate_process(){
 			local process_name=$1
 			ps -ef | grep $process_name | grep -v grep | awk '{print $2}' | xargs -r kill -9
 		}
+
+iexec_sitl(){
+			export $(grep -v '^#' $config_file | xargs)
+			time docker container exec -it "$1" /bin/bash -l -c "source /opt/ros/${ROS_VERSION}/setup.bash && \ 
+				source /ardu_ws/install/setup.bash && \ 
+				source /airsim_ws/install/setup.bash \ 
+				source /ws/ros_ws/install/setup.bash && $2"
+}

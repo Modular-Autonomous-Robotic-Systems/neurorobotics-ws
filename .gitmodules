@@ -1,6 +1,7 @@
 [submodule "ros_ws"]
 	path = ros_ws
 	url = git@github.com:shandilya1998/neurorobotics-toolkit.git
+	branch = master
 [submodule "ext/calibration/kalibr"]
 	path = ext/calibration/kalibr
 	url = git@github.com:ethz-asl/kalibr.git
