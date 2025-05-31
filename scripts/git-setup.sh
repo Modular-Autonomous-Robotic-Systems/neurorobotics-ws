@@ -10,6 +10,7 @@ apply_safe_directory(){
     git config --global --add safe.directory "${1}/${2}"
 }
 
+git config --global --add safe.directory "/ws"
 export -f apply_safe_directory
 git submodule init
 git submodule status | awk '{print $2}' | xargs -I {} bash -c 'apply_safe_directory "$PWD" "{}"'

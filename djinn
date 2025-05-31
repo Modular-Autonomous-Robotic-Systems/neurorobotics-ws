@@ -96,7 +96,6 @@ then
 				setup_airsim_ros_pkgs_for_docker_build "ardupilot"
 				build_image $platform $image $filepath 
 				iexec init_container "rm -rf /ws/docker/nrt/ardupilot/airsim_ws"
-				iexec init_container "/ws/scripts/docker-setup.sh"
 				docker stop init_container
 			elif [[ "$3" == "airsim"  ]]
 			then

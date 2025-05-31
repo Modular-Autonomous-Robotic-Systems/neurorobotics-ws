@@ -51,7 +51,7 @@ setup_airsim_ros_pkgs_for_docker_build(){
 	platform="linux/amd64,linux/arm64"
 	container_name="init_container"
 	source $NRT_WS/scripts/start.sh "$NRT_WS" "$container_name" "$image"
-	iexec init_container "ls && echo \"Starting Container Setup\" && /ws/scripts/docker-setup.sh $3 $userEmail $userName"
+	iexec init_container "ls && echo \"Starting Container Setup\" && /ws/scripts/git-setup.sh $3 $userEmail $userName && /ws/scripts/docker-setup.sh"
 	iexec init_container "mkdir -p /ws/docker/nrt/$directory/airsim_ws/src/AirSim && \
 		cp -r /ws/envs/ue5/AirSim/cmake/ \
 		/ws/envs/ue5/AirSim/AirLib/ \
