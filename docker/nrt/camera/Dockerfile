@@ -36,7 +36,7 @@ RUN if [ "$(uname -m)" = "aarch64" ]; then \
 		meson setup build --buildtype=release -Dpipelines=rpi/vc4,rpi/pisp -Dipas=rpi/vc4,rpi/pisp -Dv4l2=true -Dgstreamer=enabled -Dtest=false -Dlc-compliance=disabled -Dcam=disabled -Dqcam=disabled -Ddocumentation=disabled -Dpycamera=enabled && \
 		ninja -C build install; \
 	elif [ "$(uname -m)" = "x86_64" ]; then \
-		git clone https://git.libcamera.org/libcamera/libcamera.git && \
+		git clone https://github.com/libcamera-org/libcamera.git && \
 		cd libcamera && \
 		meson setup build --buildtype=release -Dv4l2=true -Dgstreamer=enabled -Dtest=false && \
 		ninja -C build install; \

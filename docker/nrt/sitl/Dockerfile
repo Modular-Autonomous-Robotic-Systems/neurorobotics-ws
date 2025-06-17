@@ -62,7 +62,7 @@ RUN vim -c PluginInstall -c qall && ls && \
 WORKDIR /airsim_ws
 ADD ./airsim_ws /airsim_ws
 COPY ./build_airsim.sh /airsim_ws/build.sh
-RUN apt-get install -y zip unzip ros-humble-vision-opencv ros-humble-cv-bridge && chmod +x build.sh && ./build.sh
+RUN apt-get install -y zip unzip ros-humble-vision-opencv ros-humble-cv-bridge ros-humble-ffmpeg-image-transport && chmod +x build.sh && ./build.sh
 
 ENTRYPOINT ["/ros_entrypoint.sh"]
 CMD ["bash"]

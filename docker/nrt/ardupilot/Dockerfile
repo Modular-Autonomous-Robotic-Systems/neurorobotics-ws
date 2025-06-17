@@ -47,5 +47,7 @@ RUN apt-get install wget && chmod +x build.sh && ./build.sh
 
 WORKDIR /ws
 
+RUN apt-get update && apt-get install -y ros-humble-ffmpeg-image-transport
+
 ENTRYPOINT ["/ros_entrypoint.sh"]
 CMD ["bash"]
