@@ -5,7 +5,7 @@
 config_file=$NRT_WS/.djinn_config
 # Refer to the following link for information about state management in bash using a statefile
 # https://stackoverflow.com/questions/63084354/how-to-store-state-between-two-consecutive-runs-of-a-bash-script
-statefile="/tmp/djinn_state"
+statefile="$NRT_WS/.djinn_state"
 last_run_sitl_env=""
 # xhost +
 echo "WORKSPACE PATH: $NRT_WS"
