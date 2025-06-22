@@ -46,6 +46,10 @@ $ ./djinn init docker kalibr
 - To build ORBSlam2, ORBSlam3, AKAZESlam, NRT and/or NRT-ROS run the following commands according to need:
     - To build all of the above: `./djinn build`
     - To build NRT: `./djinn build nrt`
+- To build ArduPilot for deployment use the following command:
+    - `djinn build ardupilt $board $configuration`
+    - `board` takes the name of the target board. For instance, board name for SpeedyBee F405 Wing is `SpeedyBeeF405WING`.
+    - `configuration` takes the robot configuration as input. The values may be one of `plane`, `copter`, `rover` etc. Refer to ArduPilot documentation [here](https://ardupilot.org/dev/docs/building-setup-linux.html#building-setup-linux) for more reference.
 
 # Miscellaneous Commands
 

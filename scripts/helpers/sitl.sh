@@ -22,7 +22,7 @@ build_sitl_docker_image(){
 start_simulation(){
 	environment=$1
 	xhost +local:docker
-	spawn_container_if_needed airsim_container "perceptionif/nrt_airsim:0.0.1" "x86_64"
+	spawn_container_if_needed airsim_container "shandilya1998/nrt_airsim:0.0.1" "x86_64"
 }
 
 stop_simulation(){
@@ -30,7 +30,7 @@ stop_simulation(){
 }
 
 start_sitl_container(){
-	$NRT_WS/scripts/start.sh $NRT_WS sitl_bridge_container shandilya1998/nrt:sitl
+	spawn_container_if_needed sitl_bridge_container shandilya1998/nrt:sitl
 }
 
 stop_sitl_container(){
