@@ -209,6 +209,21 @@ then
 			fi
 			# build_image $platform $image $filepath "NRT_WS=$NRT_WS"
 			source $NRT_WS/docker/scripts/docker-build.sh $platform $image $filepath "NRT_WS=$NRT_WS" 
+		elif [[ "$2" == "ardupilot" ]]
+		then
+			spawn_container_if_needed sitl_bridge_container "shandilya1998/nrt:sitl"
+			board="SpeedyBeeF405WING"
+			configuration="plane"
+			if [[ ! -z "$3" ]]
+			then
+				board="$3"
+			fi
+			if [[ ! -z "$4" ]]
+			then
+				configuration="$4"
+			fi
+			iexec_sitl2 sitl_bridge_container "cd /ardu_ws/src/ardupilot && ./waf configure --enable-dds --board $board && ./waf $configuration"
+			iexec_sitl2 sitl_bridge_container "cp -r /ardu_ws/src/ardupilot/build/$board /ws/logs/$board"
 		fi
 	fi
 
