@@ -222,7 +222,7 @@ then
 			then
 				configuration="$4"
 			fi
-			iexec_sitl2 sitl_bridge_container "cd /ardu_ws/src/ardupilot && ./waf configure --board $board && ./waf $configuration"	
+			iexec_sitl2 sitl_bridge_container "cd /ardu_ws/src/ardupilot && ./waf configure --enable-dds --board $board && ./waf $configuration"
 			iexec_sitl2 sitl_bridge_container "cp -r /ardu_ws/src/ardupilot/build/$board /ws/logs/$board"
 		fi
 	fi
