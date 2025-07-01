@@ -248,20 +248,30 @@ then
 		iexec_ros nrt_container "source /ws/ros_ws/install/setup.bash && ros2 launch controllers tello_orbslam3_mono_launch.py"
 	elif [[ "$2" == "sitl" ]]
 	then
-		echo "starting sitl"
-		start_simulation "nature"
-		echo "Starting Ardupilot" 	
-		start_sitl_container
-		# gnome-terminal --title "ArduPilot" -- bash -c "$NRT_WS/envs/scripts/run_ardupilot.sh; exec bash"
-		gnome-terminal --title "AirSim" -- bash -c "$NRT_WS/envs/ue5/scripts/run_airsim.sh;"
-		sleep 3
-		# gnome-terminal --title "SITL Bridge" -- bash -c "$NRT_WS/envs/scripts/run_ardupilot_airsim_ros_sitl.sh"
-		# gnome-terminal --title "AirSim ROS bridge" -- bash -c "$NRT_WS/envs/scripts/run_airsim_ros_pkgs.sh"
-		# sleep 3
-		# gnome-terminal --title "SITL Bridge" -- bash -c "$NRT_WS/envs/scripts/run_sitl_ardupilot_bridge.sh"
-		gnome-terminal --title "SITL Bridge" -- bash -c "$NRT_WS/envs/scripts/run_ardupilot_airsim_ros_sitl.sh"
-		# source $NRT_WS/envs/scripts/run_sitl_ardupilot_bridge.sh
-		gnome-terminal --title "QGroundControl" -- bash -c "$NRT_WS/ext/QGroundControl.AppImage"
+		if [[ -n "$3" ]]
+		then
+			if [[ "$3" == "orbslam3"  ]]
+			then
+				# TODO add launch file here
+				echo "Starting ORBSLAM3"
+				spawn_container_if_needed nrt_container "shandilya1998/nrt:$VERSION"
+				iexec_sitl2 nrt_container "export DISPLAY=:1 && ros2 launch slam orbslam3.launch.py log-level:=INFO camera-topic:=/airsim_node/Copter/front_center_Scene/image settings-file-path:=/ws/ros_ws/src/slam/config/orbslam3_mono_config.yaml "
+			else
+				echo "Incorrect option for SITL application"
+			fi
+		else
+			echo "starting sitl"
+			start_simulation "nature"
+			echo "Starting Ardupilot" 	
+			start_sitl_container
+			# gnome-terminal --title "ArduPilot" -- bash -c "$NRT_WS/envs/scripts/run_ardupilot.sh; exec bash"
+			gnome-terminal --title "AirSim" -- bash -c "$NRT_WS/envs/ue5/scripts/run_airsim.sh;"
+			sleep 3
+
+			gnome-terminal --title "SITL Bridge" -- bash -c "$NRT_WS/envs/scripts/run_ardupilot_airsim_ros_sitl.sh"
+			# source $NRT_WS/envs/scripts/run_sitl_ardupilot_bridge.sh
+			gnome-terminal --title "QGroundControl" -- bash -c "$NRT_WS/ext/QGroundControl.AppImage"
+		fi
 		# stop_sitl_container
 		# stop_simulation
 	fi
