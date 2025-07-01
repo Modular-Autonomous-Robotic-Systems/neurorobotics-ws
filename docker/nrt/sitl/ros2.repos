@@ -2,7 +2,7 @@ repositories:
   ardupilot:
     type: git
     url: https://github.com/ArduPilot/ardupilot.git
-    version: master
+    version: 229bcaacd5404bbdc5a4d0ae9a74a46ed5e12db9
   micro_ros_agent:
     type: git
     url: https://github.com/micro-ROS/micro-ROS-Agent.git

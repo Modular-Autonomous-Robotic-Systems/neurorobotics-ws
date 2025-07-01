@@ -41,7 +41,7 @@ then
 	then
 		read -p "Enter email address for github: " email
 		read -p "Enter username for dockerhub: " name
-		echo "VERSION=0.0.4" >> $config_file
+		echo "VERSION=0.0.8" >> $config_file
 		echo "ROS_VERSION=\"humble\"" >> $config_file
 		echo "userEmail="$email >> $config_file 
 		echo "userName="$name >> $config_file 
@@ -68,32 +68,32 @@ then
 			echo "============ BUILDING Image ============="
 			if [[ "$3" == "nrt" ]]
 			then
-				# echo "============ BUILDING Base Image ============="
-				# image="$userName/nrt:base"
-				# filepath="$NRT_WS/docker/base/"
-				# build_image $platform $image $filepath
-				# echo "============ BUILDING ROS Image ============="
-				# image="$userName/nrt:ros"
-				# filepath="$NRT_WS/docker/base/ros"
-				# platform="linux/amd64,linux/arm64"
-				# build_image $platform $image $filepath 
-				# echo "============ BUILDING NRT Pangolin Image ============="
-				# image="$userName/nrt:pangolin"
-				# filepath="$NRT_WS/docker/nrt/pangolin"
-				# platform="linux/amd64,linux/arm64"
-				# build_image $platform $image $filepath 
+				echo "============ BUILDING Base Image ============="
+				image="$userName/nrt:base"
+				filepath="$NRT_WS/docker/base/"
+				build_image $platform $image $filepath
+				echo "============ BUILDING ROS Image ============="
+				image="$userName/nrt:ros"
+				filepath="$NRT_WS/docker/base/ros"
+				platform="linux/amd64,linux/arm64"
+				build_image $platform $image $filepath 
+				echo "============ BUILDING NRT Pangolin Image ============="
+				image="$userName/nrt:pangolin"
+				filepath="$NRT_WS/docker/nrt/pangolin"
+				platform="linux/amd64,linux/arm64"
+				build_image $platform $image $filepath 
 				echo "============ BUILDING NRT Camera Image ============="
 				image="$userName/nrt:camera"
 				filepath="$NRT_WS/docker/nrt/camera"
 				platform="linux/amd64,linux/arm64"
 				container_name="nrt_container"
-				# build_image $platform $image $filepath 
+				build_image $platform $image $filepath 
 				echo "============ BUILDING NRT VERSION:$VERSION Image ============="
+				setup_airsim_ros_pkgs_for_docker_build "ardupilot"
 				image="$userName/nrt:$VERSION"
 				filepath="$NRT_WS/docker/nrt/ardupilot"
 				platform="linux/amd64,linux/arm64"
 				container_name="nrt_container"
-				setup_airsim_ros_pkgs_for_docker_build "ardupilot"
 				build_image $platform $image $filepath 
 				iexec init_container "rm -rf /ws/docker/nrt/ardupilot/airsim_ws"
 				docker stop init_container
@@ -242,7 +242,7 @@ then
 		# gnome-terminal --title "AirSim ROS bridge" -- bash -c "$NRT_WS/envs/scripts/run_airsim_ros_pkgs.sh"
 		# sleep 3
 		# gnome-terminal --title "SITL Bridge" -- bash -c "$NRT_WS/envs/scripts/run_sitl_ardupilot_bridge.sh"
-		gnome-terminal --title "SITL Bridge" -- bash -c "$NRT_WS/envs/scripts/run_ardupilot_airsim_ros_sitl.sh;"
+		gnome-terminal --title "SITL Bridge" -- bash -c "$NRT_WS/envs/scripts/run_ardupilot_airsim_ros_sitl.sh"
 		# source $NRT_WS/envs/scripts/run_sitl_ardupilot_bridge.sh
 		gnome-terminal --title "QGroundControl" -- bash -c "$NRT_WS/ext/QGroundControl.AppImage"
 		# stop_sitl_container

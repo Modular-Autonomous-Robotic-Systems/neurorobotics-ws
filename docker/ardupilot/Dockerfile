@@ -41,5 +41,7 @@ RUN vim -c PluginInstall -c qall && ls && \
 	python3 ./install.py --force-sudo --clang-completer && \
 	cp /home/${USER_NAME}/.vim/bundle/youcompleteme/third_party/ycmd/.ycm_extra_conf.py  /home/${USER_NAME}/.vim/
 
+RUN apt-get install -y ros-humble-ffmpeg-image-transport
+
 ENTRYPOINT ["/ardupilot_entrypoint.sh"]
 CMD ["bash"]
