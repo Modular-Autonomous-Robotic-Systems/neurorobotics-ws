@@ -1,0 +1,13 @@
+[Unit]
+Description=ROS2 Launch at Boot
+After=network.target
+
+[Service]
+Type=simple
+Environment="NRT_WS=/home/shandilya/neurorobotics-ws"
+ExecStart="/home/shandilya/neurorobotics-ws/scripts/deploy/data_logger.sh"
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+

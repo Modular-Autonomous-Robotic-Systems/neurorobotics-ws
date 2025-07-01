@@ -14,7 +14,9 @@ source $NRT_WS/scripts/helpers/data.sh
 # 1. iexec
 # 2. iexec_ros
 # 3. iexec_kalibr
-# 4. terminate_process
+# 4. iexec_sitl
+# 5. iexec_sitl
+# 6. terminate_process
 source $NRT_WS/scripts/helpers/exec.sh
 # docker.sh declares all helper functions related to docker required for djinn and its derivative scripts
 # available methods are

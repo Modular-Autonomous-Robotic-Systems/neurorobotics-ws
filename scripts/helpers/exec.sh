@@ -22,7 +22,15 @@ terminate_process(){
 
 iexec_sitl(){
 			export $(grep -v '^#' $config_file | xargs)
-			time docker container exec -it "$1" /bin/bash -l -c "source /opt/ros/${ROS_VERSION}/setup.bash && \ 
+			time docker container exec -it "$1" /usr/bin/bash -l -c "source /opt/ros/${ROS_VERSION}/setup.bash && \ 
+				source /ardu_ws/install/setup.bash && \ 
+				source /airsim_ws/install/setup.bash \ 
+				source /ws/ros_ws/install/setup.bash && $2"
+}
+
+iexec_sitl2(){
+			export $(grep -v '^#' $config_file | xargs)
+			time docker container exec "$1" /usr/bin/bash -l -c "source /opt/ros/${ROS_VERSION}/setup.bash && \ 
 				source /ardu_ws/install/setup.bash && \ 
 				source /airsim_ws/install/setup.bash \ 
 				source /ws/ros_ws/install/setup.bash && $2"
