@@ -44,7 +44,7 @@ spawn_container_if_needed(){
 		then
 			source $NRT_WS/envs/ue5/scripts/start.sh $NRT_WS/envs/ue5/AirSim/Unreal/Environments
 		else
-			source $NRT_WS/docker/scripts/start.sh $NRT_WS "${name}" ${image_name} ${platform}
+			source $NRT_WS/scripts/start.sh $NRT_WS "${name}" ${image_name} ${platform}
 		fi
     fi
 }
