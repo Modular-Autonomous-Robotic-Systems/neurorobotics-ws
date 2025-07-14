@@ -255,7 +255,8 @@ then
 				# TODO add launch file here
 				echo "Starting ORBSLAM3"
 				spawn_container_if_needed nrt_container "shandilya1998/nrt:$VERSION"
-				iexec_sitl2 nrt_container "export DISPLAY=:1 && ros2 launch slam orbslam3.launch.py log-level:=INFO camera-topic:=/airsim_node/Copter/front_center_Scene/image settings-file-path:=/ws/ros_ws/src/slam/config/orbslam3_mono_config.yaml "
+				iexec_sitl2 nrt_container "export DISPLAY=:1 && ros2 launch slam orbslam3.launch.py log-level:=INFO camera-topic:=/airsim_node/Copter/front_center_Scene/image settings-file-path:=/ws/ros_ws/src/slam/orb_slam3/config/Monocular/sitl.yaml vocab-file-path:=/ws/ros_ws/src/slam/orb_slam3/Vocabulary/ORBvoc.txt.bin"
+				iexec nrt_container "ps -eawf | grep orbslam3 | grep -v grep | awk '{print \$2}' | xargs -r kill -9"
 			else
 				echo "Incorrect option for SITL application"
 			fi
@@ -296,6 +297,9 @@ then
 	elif [[ "$2" == "gqc" ]]
 	then
 		ps -ef | grep QGroundControl | grep -v grep | awk '{print $2}' | xargs -r kill -9
+	elif [[ "$2" == "orbslam3" ]]
+	then
+		iexec nrt_container "ps -eawf | grep orbslam3 | grep -v grep | awk '{print \$2}' | xargs -r kill -9"
 	fi
 
 elif [[ "$1" == "down" ]]

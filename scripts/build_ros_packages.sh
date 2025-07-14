@@ -11,7 +11,7 @@ cd /ws/ros_ws
 echo "***********************************************"
 echo $PWD
 cd /ws/ros_ws/src/slam/ext/MORB_SLAM/
-./build.sh -DCMAKE_BUILD_TYPE=RELEASE -j7
+# ./build.sh -DCMAKE_BUILD_TYPE=RELEASE -j7
 cd /ws/ros_ws
 source install/setup.bash
 echo "***********************************************"
