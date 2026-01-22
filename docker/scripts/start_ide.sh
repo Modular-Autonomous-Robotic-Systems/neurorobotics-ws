@@ -1,28 +1,11 @@
 #!/bin/bash
 
-dir=$1
-name="$2"
-image="$3"
+name="$1"
+image="$2"
 echo $name
 echo $image
-platform="$(uname -p)"
-echo "host platform=$platform"
-
-if [[ -n "$4" ]]; then
-    platform="$4"
-fi
-echo "build platform=$platform"
-
-if [[ "$platform" == "x86_64" ]]; then
-    platform="linux/amd64"
-elif [[ "$platform" == "aarch64" ]]; then
-    platform="linux/arm64/v8"
-fi
-
-echo "platform=$platform"
-
 XAUTH=/tmp/.docker.xauth
-docker run --rm -d -it -v $dir:/ws/ \
+docker run --rm -d -it -v $NRT_WS:/ws/ \
     -v ./.ssh:/root/.ssh \
     -v /dev:/dev \
     --device-cgroup-rule "c 81:* rmw" \
@@ -34,7 +17,9 @@ docker run --rm -d -it -v $dir:/ws/ \
     -e TERM=xterm-256color \
     -e QT_GRAPHICSSYSTEM=native \
     -v $XAUTH:$XAUTH:rw \
-    --platform=$platform \
     -v /tmp/.X11-unix:/tmp/.X11-unix \
+    -v $NRT_WS/.local/share/nvim:/root/.local/share/nvim \
+    -v $NRT_WS/.local/state/nvim:/root/.local/state/nvim \
+    -v $NRT_WS/.gemini:/root/.gemini \
     --env="DISPLAY" --net=host \
     --privileged --name $name $image bash

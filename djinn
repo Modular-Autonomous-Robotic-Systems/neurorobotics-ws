@@ -67,29 +67,29 @@ elif [[ "$1" == "init" ]]; then
                 echo "============ BUILDING Base Image ============="
                 image="$userName/nrt:base"
                 filepath="$NRT_WS/docker/base/"
+                setup_nvim_config_for_image_build $filepath
                 build_image $platform $image $filepath
+                cleanup_nvim_config_after_image_build $filepath
                 echo "============ BUILDING ROS Image ============="
                 image="$userName/nrt:ros"
-                filepath="$NRT_WS/docker/base/ros"
+                filepath="$NRT_WS/docker/ros"
                 platform="linux/amd64,linux/arm64"
                 build_image $platform $image $filepath
                 echo "============ BUILDING NRT Pangolin Image ============="
                 image="$userName/nrt:pangolin"
-                filepath="$NRT_WS/docker/nrt/pangolin"
+                filepath="$NRT_WS/docker/pangolin"
                 platform="linux/amd64,linux/arm64"
                 build_image $platform $image $filepath
                 echo "============ BUILDING NRT Camera Image ============="
                 image="$userName/nrt:camera"
                 filepath="$NRT_WS/docker/camera"
                 platform="linux/amd64,linux/arm64"
-                container_name="nrt_container"
                 build_image $platform $image $filepath
                 echo "============ BUILDING NRT VERSION:$VERSION Image ============="
                 setup_airsim_ros_pkgs_for_docker_build "ardupilot"
                 image="$userName/nrt:$VERSION"
                 filepath="$NRT_WS/docker/ardupilot"
                 platform="linux/amd64,linux/arm64"
-                container_name="nrt_container"
                 build_image $platform $image $filepath
                 # init_container was spawned in setup_airsim_ros_pkgs_for_docker_build
                 iexec init_container "rm -rf /ws/docker/ardupilot/airsim_ws"
@@ -98,7 +98,7 @@ elif [[ "$1" == "init" ]]; then
                 image="$userName/nrt:dev"
                 filepath="$NRT_WS/docker/dev/"
                 build_image $platform $image $filepath
-				docker pull $image
+                docker pull $image
                 source $NRT_WS/docker/scripts/start_ide.sh init_container $image
                 iexec init_container "gemini -d"
                 source $NRT_WS/docker/dev/install_nerd_font.sh
@@ -111,8 +111,13 @@ elif [[ "$1" == "init" ]]; then
                 echo "============ BUILDING SIMULATION Image ============="
                 build_airsim_docker_image
                 echo "============ BUILDING SITL BRIDGE Image ============="
-                setup_airsim_ros_pkgs_for_docker_build "sitl"
-                build_sitl_docker_image
+                setup_airsim_ros_pkgs_for_docker_build "ardupilot"
+                image="$userName/nrt:$VERSION"
+                filepath="$NRT_WS/docker/ardupilot"
+                platform="linux/amd64,linux/arm64"
+                build_image $platform $image $filepath
+                # init_container was spawned in setup_airsim_ros_pkgs_for_docker_build
+                iexec init_container "rm -rf /ws/docker/ardupilot/airsim_ws"
                 iexec init_container "rm -rf /ws/docker/nrt/sitl/airsim_ws"
                 if [[ ! -f "ext/QGroundControl.AppImage" ]]; then
                     echo "============ Fetching QGroundControl ============="
@@ -158,7 +163,7 @@ elif [[ "$1" == "up" ]]; then
                 start_simulation "nature"
             fi
         elif [[ "$2" == "sitl_bridge" ]]; then
-            start_sitl_container
+            spawn_container_if_needed sitl_bridge_container shandilya1998/nrt:$VERSION
         elif [[ "$2" == "kalibr" ]]; then
             echo "============ Initialising Kalibr Container ============="
             source $NRT_WS/scripts/start.sh $NRT_WS kalibr_container shandilya1998/nrt:kalibr
@@ -200,7 +205,7 @@ elif [[ "$1" == "build" ]]; then
             # build_image $platform $image $filepath "NRT_WS=$NRT_WS"
             source $NRT_WS/docker/scripts/docker-build.sh $platform $image $filepath "NRT_WS=$NRT_WS"
         elif [[ "$2" == "ardupilot" ]]; then
-            spawn_container_if_needed sitl_bridge_container "shandilya1998/nrt:sitl"
+            spawn_container_if_needed sitl_bridge_container "shandilya1998/nrt:$VERSION"
             board="SpeedyBeeF405WING"
             configuration="plane"
             if [[ ! -z "$3" ]]; then
@@ -243,12 +248,12 @@ elif [[ "$1" == "start" ]]; then
             echo "starting sitl"
             start_simulation "nature"
             echo "Starting Ardupilot"
-            start_sitl_container
+            spawn_container_if_needed sitl_bridge_container "shandilya1998/nrt:$VERSION"
             # gnome-terminal --title "ArduPilot" -- bash -c "$NRT_WS/envs/scripts/run_ardupilot.sh; exec bash"
             gnome-terminal --title "AirSim" -- bash -c "$NRT_WS/envs/ue5/scripts/run_airsim.sh;"
             sleep 3
 
-            gnome-terminal --title "SITL Bridge" -- bash -c "$NRT_WS/envs/scripts/run_ardupilot_airsim_ros_sitl.sh"
+            gnome-terminal --title "SITL Bridge" -- bash -c "$NRT_WS/envs/scripts/run_ardupilot_airsim_ros_sitl.sh;"
             # source $NRT_WS/envs/scripts/run_sitl_ardupilot_bridge.sh
             gnome-terminal --title "QGroundControl" -- bash -c "$NRT_WS/ext/QGroundControl.AppImage"
         fi

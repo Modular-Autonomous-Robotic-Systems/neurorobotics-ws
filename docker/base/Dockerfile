@@ -10,12 +10,18 @@ FROM ubuntu:22.04
 
 # Set environment variables to avoid interactive prompts during installation
 ENV DEBIAN_FRONTEND=noninteractive
+ENV TERM=xterm-256color
+ENV COLORTERM=truecolor
+ENV SHELL=/bin/bash
+ENV LANG en_US.UTF-8
+ENV LC_ALL en_US.UTF-8
+ENV LANGUAGE en_US:en
 
 # setup timezone
 RUN echo 'Asia/Kolkata' > /etc/timezone && \
-	ln -snf /usr/share/zoneinfo/Asia/Kolkata /etc/localtime && \
-	apt-get update && \
-	apt-get install -q -y --no-install-recommends tzdata gpg-agent && \
+    ln -snf /usr/share/zoneinfo/Asia/Kolkata /etc/localtime && \
+    apt-get update && \
+    apt-get install -q -y --no-install-recommends tzdata gpg-agent && \
     rm -rf /var/lib/apt/lists/*
 
 # Install dependencies
@@ -26,14 +32,21 @@ RUN apt update && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
     build-essential \
-	ca-certificates \
-	ruby-dev \
-	lua5.2 \
-	liblua5.2-dev \
-	libperl-dev \
+    ca-certificates \
+    ruby-dev \
+    lua5.2 \
+    liblua5.2-dev \
+    libperl-dev \
     git\
-	checkinstall \
-	python3-dev \
+    curl \
+    wget \
+    tar \
+    gzip \
+    fd-find \
+    fzf \
+    ripgrep \
+    checkinstall \
+    python3-dev \
     libglfw3-dev \
     libgl1-mesa-dev \
     libglu1-mesa-dev \
@@ -47,11 +60,16 @@ RUN apt update && \
     unzip \
     pkg-config \
     libssl-dev \
-	openssh-client \
-	gdb \
+    openssh-client \
+    gdb \
     dirmngr \
     gnupg2 \
-	bash-completion \
+    bash-completion \
+    clang \
+    lldb \
+    openjdk-17-jdk \
+    locales \
+    xclip \
     python3-argcomplete \
     python3-flake8 \
     python3-flake8-blind-except \
@@ -68,45 +86,72 @@ RUN apt update && \
     python3-pytest-repeat \
     python3-pytest-rerunfailures \
     python3-pytest-runner \
+    python3-venv \
     python3-pytest-timeout && \
     rm -rf /var/lib/apt/lists/*
 
-# Clone repositories
-WORKDIR /deps
+RUN apt-get update && apt-get install -y \
+    npm
+RUN npm install n -g && \
+    n latest
 
-# WORKDIR /deps/opencv/build
-# RUN cmake -D CMAKE_BUILD_TYPE=RELEASE -D CMAKE_INSTALL_PREFIX=$(python3 -c "import sys; print(sys.prefix)") -D PYTHON3_EXECUTABLE=$(which python3) -D PYTHON_DEFAULT_EXECUTABLE=$(which python3) -D WITH_GTK=ON -D WITH_FFMPEG=ON -D BUILD_EXAMPLES=ON -D INSTALL_C_EXAMPLES=OFF -D OPENCV_EXTRA_MODULES_PATH=../../opencv_contrib/modules -D INSTALL_PYTHON_EXAMPLES=ON -D HAVE_opencv_python3=ON -D WITH_GSTREAMER=ON .. && \
-#     make -j2 && \
-#     make install
+RUN npm install -g pyright bash-language-server dockerfile-language-server-nodejs tree-sitter-cli
 
-WORKDIR /deps
-RUN git clone https://github.com/vim/vim.git && cd vim && git checkout  6cc3027 && ./configure --with-features=huge \
-            --enable-multibyte \
-            --enable-rubyinterp=yes \
-            --enable-python3interp=yes \
-            --with-python3-config-dir=$(python3-config --configdir) \
-            --enable-perlinterp=yes \
-            --enable-luainterp=yes \
-            --enable-gui=gtk2 \
-            --enable-cscope \
-            --prefix=/usr/local && \
-		make VIMRUNTIMEDIR=/usr/local/share/vim/vim91 && \
-		checkinstall -y
+# --- Install Java LSP (JDTLS) ---
+# Downloading Eclipse JDTLS snapshot for headless installation
+RUN mkdir -p /opt/jdtls && \
+    curl -L https://download.eclipse.org/jdtls/snapshots/jdt-language-server-latest.tar.gz -o /opt/jdtls/jdtls.tar.gz && \
+    tar -xzf /opt/jdtls/jdtls.tar.gz -C /opt/jdtls && \
+    rm /opt/jdtls/jdtls.tar.gz
 
-# Setup vim for development
-WORKDIR /root
-RUN mkdir -p /root/.vim/bundle && \
-	cd /root/.vim/bundle && \
-	git clone https://github.com/VundleVim/Vundle.vim && \
-	mkdir -p /root/.vim/colors
-COPY ./.vimrc /root/.vimrc
-COPY ./codedark.vim /root/.vim/colors/codedark.vim 
-RUN vim -c PluginInstall -c qall && ls && \
-	cd /root/.vim/bundle/ && \
-	rm -rf youcompleteme && \
-	git clone https://github.com/ycm-core/YouCompleteMe youcompleteme && \
-	python3 -m pip install regex && \
-	cd /root/.vim/bundle/youcompleteme && \
-	git submodule update --init --recursive && \
-	python3 ./install.py --force-sudo --clang-completer && \
-	cp /root/.vim/bundle/youcompleteme/third_party/ycmd/.ycm_extra_conf.py  /root/.vim/
+WORKDIR /opt
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then \
+    NVIM_ASSET="nvim-linux-x86_64.tar.gz"; \
+    NVIM_DIR="nvim-linux-x86_64"; \
+    elif [ "$ARCH" = "aarch64" ]; then \
+    NVIM_ASSET="nvim-linux-arm64.tar.gz"; \
+    NVIM_DIR="nvim-linux-arm64"; \
+    else \
+    echo "Unsupported architecture: $ARCH"; exit 1; \
+    fi && \
+    echo "Downloading Neovim for $ARCH..." && \
+    curl -fLO "https://github.com/neovim/neovim/releases/download/v0.11.0/$NVIM_ASSET" && \
+    tar -xzf "${NVIM_ASSET}" && \
+    rm "${NVIM_ASSET}" && \
+    # Rename specific arch folder to generic 'nvim' for PATH consistency
+    mv "${NVIM_DIR}" nvim
+
+# Update PATH to include the generic Neovim bin location
+ENV PATH="$PATH:/opt/nvim/bin"
+RUN echo 'export PATH="$PATH:/opt/nvim/bin"' >> /root/.bashrc
+
+RUN mkdir -p /root/.config/nvim /root/.config/nvim/lua/plugins/ /root/.config/nvim/ftplugin/
+COPY init.lua /root/.config/nvim/init.lua
+COPY core.lua /root/.config/nvim/lua/plugins/core.lua
+COPY git.lua /root/.config/nvim/lua/plugins/git.lua
+COPY lang.lua /root/.config/nvim/lua/plugins/lang.lua
+COPY lsp.lua /root/.config/nvim/lua/plugins/lsp.lua
+COPY ui.lua /root/.config/nvim/lua/plugins/ui.lua
+
+RUN sed -i 's/^# force_color_prompt=yes/force_color_prompt=yes/' /root/.bashrc && \
+    echo "alias ls='ls --color=auto'" >> /root/.bashrc && \
+    echo "alias grep='grep --color=auto'" >> /root/.bashrc && \
+    echo "alias vim='nvim'" >> /root/.bashrc && \
+    echo "alias vi='nvim'" >> /root/.bashrc && \
+    echo "alias neovim='nvim'" >> /root/.bashrc
+
+# 4. Install Nerd Fonts (JetBrainsMono)
+# This installs the font INTO the container.
+# Note: For terminal usage, you usually need this font on your HOST machine.
+RUN mkdir -p /usr/share/fonts/truetype/jetbrains-mono && \
+    wget -q https://github.com/ryanoasis/nerd-fonts/releases/download/v3.0.2/JetBrainsMono.zip && \
+    unzip -q JetBrainsMono.zip -d /usr/share/fonts/truetype/jetbrains-mono && \
+    rm JetBrainsMono.zip && \
+    fc-cache -fv
+
+RUN nvim --headless "+Lazy! sync" +qa
+
+# Use a more appropriate entrypoint
+WORKDIR /ws
+CMD ["/bin/bash"]

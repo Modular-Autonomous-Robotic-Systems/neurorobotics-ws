@@ -6,3 +6,6 @@ temp/
 .djinn_config
 *QGroundControl.AppImage
 ext/ardupilot
+.gemini
+.local
+data

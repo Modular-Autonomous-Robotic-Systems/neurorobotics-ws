@@ -13,10 +13,12 @@ return {
 			-- 1. Enable Fzf Support
 			-- Override vim.ui.select to use fzf-lua for a better selection experience
 			vim.ui.select = function(items, opts, onChoice)
-				require('fzf-lua').fzf_exec(items, {
-					prompt = opts.prompt or 'Select from items',
+				require("fzf-lua").fzf_exec(items, {
+					prompt = opts.prompt or "Select from items",
 					actions = {
-						['default'] = function(selected) onChoice(selected[1]) end,
+						["default"] = function(selected)
+							onChoice(selected[1])
+						end,
 					},
 					winopts = { height = math.min(0.2 + #items * 0.05, 0.6) },
 				})
@@ -25,9 +27,9 @@ return {
 			-- 2. Setup Gemini
 			gemini.setup({
 				-- We only specify "gemini" as qwen is not installed in the Dockerfile
-				cmds = { "gemini" }, 
+				cmds = { "gemini" },
 				win = {
-					preset = "floating", -- Default style: floating, right-fixed, left-fixed, bottom-fixed
+					preset = "right-fixed", -- Default style: floating, right-fixed, left-fixed, bottom-fixed
 					width = 0.8,
 					height = 0.8,
 				},
@@ -46,14 +48,14 @@ return {
 			{ "<leader>gy", "<cmd>GeminiSwitchSidebarStyle<cr>", desc = "Gemini: Switch Sidebar Style" },
 
 			-- Visual Selection Interaction
-			{ 
-				"<leader>gs", 
-				function() 
-					vim.cmd('normal! gv')
+			{
+				"<leader>gs",
+				function()
+					vim.cmd("normal! gv")
 					vim.cmd("'<,'>GeminiSend")
-				end, 
-				mode = { 'x' }, 
-				desc = 'Gemini: Send Selection to AI' 
+				end,
+				mode = { "x" },
+				desc = "Gemini: Send Selection to AI",
 			},
 
 			-- Diagnostics & Debugging
@@ -64,5 +66,5 @@ return {
 			{ "<leader>ga", "<cmd>GeminiAccept<cr>", desc = "Gemini: Accept Changes" },
 			{ "<leader>gr", "<cmd>GeminiReject<cr>", desc = "Gemini: Reject Changes" },
 		},
-	}
+	},
 }

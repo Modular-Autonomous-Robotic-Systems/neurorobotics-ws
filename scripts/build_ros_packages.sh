@@ -16,4 +16,5 @@ cd /ws/ros_ws
 source install/setup.bash
 echo "***********************************************"
 # rm -rf build install
-colcon build --symlink-install --cmake-args '-DCMAKE_EXPORT_COMPILE_COMMANDS=1' '-DCMAKE_BUILD_TYPE=RelWithDebInfo' '-Wno-dev' --mixin debug
+
+colcon build --symlink-install --cmake-args '-DCMAKE_EXPORT_COMPILE_COMMANDS=1' '-DCMAKE_BUILD_TYPE=RelWithDebInfo' '-Wno-dev' --mixin debug --parallel-workers 1

@@ -21,6 +21,30 @@ return {
 				bash = { "shfmt" },
 				dockerfile = { "dockerfile-language-server" }, -- Use LSP formatter
 			},
+			formatters = {
+				clang_format = {
+					-- Force 4 spaces, Google Style, No Tabs
+					prepend_args = {
+						"-style={BasedOnStyle: Google, IndentWidth: 4, TabWidth: 4, UseTab: Never, AccessModifierOffset: -4}",
+					},
+				},
+				stylua = {
+					-- Force 4 spaces for Lua
+					prepend_args = { "--indent-type", "Spaces", "--indent-width", "4" },
+				},
+				shfmt = {
+					-- Force 4 spaces for Bash (-i 4)
+					prepend_args = { "-i", "4" },
+				},
+				isort = {
+					-- Ensure compatibility with Black (which forces 4 spaces)
+					prepend_args = { "--profile", "black" },
+				},
+				black = {
+					-- Black enforces 4 spaces by default and is not configurable.
+					-- Included here for completeness.
+				},
+			},
 		},
 	},
 	{

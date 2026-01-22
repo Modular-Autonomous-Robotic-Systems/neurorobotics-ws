@@ -48,6 +48,19 @@ if not vim.loop.fs_stat(lazypath) then
 end
 vim.opt.rtp:prepend(lazypath)
 
+_G.gemini_debug = function(tag, data)
+	local state_dir = vim.fn.stdpath("state") -- e.g. /root/.local/state/nvim
+	local log_path = state_dir .. "/gemini_debug.log" -- /root/.local/state/nvim/gemini_debug.log
+
+	local log_file = io.open(log_path, "a")
+	if log_file then
+		local timestamp = os.date("%H:%M:%S")
+		local content = vim.inspect(data)
+		log_file:write(string.format("[%s][%s] %s\n", timestamp, tag, content))
+		log_file:close()
+	end
+end
+
 -- Load all plugin specifications from lua/plugins/
 require("lazy").setup("plugins", {
 	checker = {
