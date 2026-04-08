@@ -22,9 +22,12 @@ fi
 echo "platform=$platform"
 
 XAUTH=/tmp/.docker.xauth
-docker run --rm -d -it -v $dir:/ws/ \
+docker run -d -it -v $dir:/ws/ \
     -v ./.ssh:/root/.ssh \
     -v /dev:/dev \
+    -v $NRT_WS/.gemini:/root/.gemini \
+    -v $NRT_WS/.claude:/root/.claude \
+    -v $NRT_WS/.claude.json:/root/.claude.json \
     --device-cgroup-rule "c 81:* rmw" \
     --device-cgroup-rule "c 189:* rmw" \
     --device /dev/vchiq \

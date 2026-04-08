@@ -21,5 +21,7 @@ docker run --rm -d -it -v $NRT_WS:/ws/ \
     -v $NRT_WS/.local/share/nvim:/root/.local/share/nvim \
     -v $NRT_WS/.local/state/nvim:/root/.local/state/nvim \
     -v $NRT_WS/.gemini:/root/.gemini \
+    -v $NRT_WS/.claude:/root/.claude \
+    -v $NRT_WS/.claude.json:/root/.claude.json \
     --env="DISPLAY" --net=host \
     --privileged --name $name $image bash

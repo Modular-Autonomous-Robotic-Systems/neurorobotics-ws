@@ -20,6 +20,8 @@ source $NRT_WS/scripts/helpers/exec.sh
 # docker.sh declares all helper functions related to docker required for djinn and its derivative scripts
 # available methods are
 # 1. build_image
+# 2. setup_nvim_config_for_image_build
+# 3. cleanup_nvim_config_after_image_build
 source $NRT_WS/scripts/helpers/docker.sh
 # sitl.sh declares all helper functions required for djinn and its derivative scripts
 # available methods are
@@ -86,6 +88,7 @@ elif [[ "$1" == "init" ]]; then
                 platform="linux/amd64,linux/arm64"
                 build_image $platform $image $filepath
                 echo "============ BUILDING NRT VERSION:$VERSION Image ============="
+                docker stop init_container && docker rm init_container
                 setup_airsim_ros_pkgs_for_docker_build "ardupilot"
                 image="$userName/nrt:$VERSION"
                 filepath="$NRT_WS/docker/ardupilot"
@@ -99,8 +102,13 @@ elif [[ "$1" == "init" ]]; then
                 filepath="$NRT_WS/docker/dev/"
                 build_image $platform $image $filepath
                 docker pull $image
+                mkdir -p $NRT_WS/.claude $NRT_WS/.gemini
+                if [[ ! -f $NRT_WS/.claude.json ]]; then
+                    touch $NRT_WS/.claude.json
+                fi
                 source $NRT_WS/docker/scripts/start_ide.sh init_container $image
-                iexec init_container "gemini -d"
+                iexec init_container "gemini auth login"
+                iexec init_container "claude /login"
                 source $NRT_WS/docker/dev/install_nerd_font.sh
                 docker stop init_container
             elif [[ "$3" == "airsim" ]]; then
@@ -241,6 +249,29 @@ elif [[ "$1" == "start" ]]; then
                 spawn_container_if_needed nrt_container "shandilya1998/nrt:$VERSION"
                 iexec_sitl2 nrt_container "export DISPLAY=:1 && ros2 launch slam orbslam3.launch.py log-level:=INFO camera-topic:=/airsim_node/Copter/front_center_Scene/image settings-file-path:=/ws/ros_ws/src/slam/orb_slam3/config/Monocular/sitl.yaml vocab-file-path:=/ws/ros_ws/src/slam/orb_slam3/Vocabulary/ORBvoc.txt.bin"
                 iexec nrt_container "ps -eawf | grep orbslam3 | grep -v grep | awk '{print \$2}' | xargs -r kill -9"
+            elif [[ "$3" == "basalt" ]]; then
+                echo "Starting Basalt"
+                spawn_container_if_needed nrt_container "shandilya1998/nrt:$VERSION"
+                iexec_sitl2 nrt_container "export DISPLAY=:1 && ros2 launch controllers basalt_slam_test.launch.py \
+                    log-level:='INFO' \
+                    ap_status_topic_name:='/ap/status' \
+                    camera-topic:='camera' \
+                    calibration-file-path:='' \
+                    configuration-file-path:='' \
+                    slam-type:='VSLAM' \
+                    input_topic:='/camera/image_raw' \
+                    ffmpeg_topic:='/camera/image_ffmpeg' \
+                    ffmpeg_node_name:='raw_to_ffmpeg_republisher' \
+                    ap_type:='ArduPilot' \
+                    output_bag_name:='/ws/data/telemetry' \
+                    topics_to_record:='[ \'/ap/airspeed\', \'/ap/battery\', \'/ap/clock\', \
+                            \'/ap/cmd_gps_pose\', \'/ap/cmd_vel\', \'/ap/geopose/filtered\', \
+                            \'/ap/goal_lla\', \'/ap/gps_global_origin/filtered\', \
+                            \'/ap/imu/experimental/data\', \'/ap/joy\', \'/ap/navsat\', \
+                            \'/ap/pose/filtered\', \'/ap/status\', \'/ap/tf\', \
+                            \'/ap/tf_static\', \'/ap/time\', \'/ap/twist/filtered\', \
+                            \'/front_center_camera/compressed\']"
+                iexec nrt_container "ps -eawf | grep basalt | grep -v grep | awk '{print \$2}' | xargs -r kill -9"
             else
                 echo "Incorrect option for SITL application"
             fi

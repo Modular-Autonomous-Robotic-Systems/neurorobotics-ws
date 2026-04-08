@@ -9,3 +9,5 @@ ext/ardupilot
 .gemini
 .local
 data
+.claude
+.claude.json

@@ -90,12 +90,18 @@ RUN apt update && \
     python3-pytest-timeout && \
     rm -rf /var/lib/apt/lists/*
 
-RUN apt-get update && apt-get install -y \
-    npm
-RUN npm install n -g && \
-    n latest
 
-RUN npm install -g pyright bash-language-server dockerfile-language-server-nodejs tree-sitter-cli
+RUN curl -fsSL https://claude.ai/install.sh | bash
+# Point Claude to the bind-mounted config dir so credentials persist across containers
+ENV CLAUDE_CONFIG_DIR=/root/.claude
+
+# Install Node 22 via NodeSource (matches node:22-slim used in docker/dev,
+# ensures gemini-cli and claude-code-acp version parity)
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
+    apt-get install -y --no-install-recommends nodejs && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN npm install -g @google/gemini-cli@0.17.1 @zed-industries/claude-code-acp pyright bash-language-server dockerfile-language-server-nodejs tree-sitter-cli
 
 # --- Install Java LSP (JDTLS) ---
 # Downloading Eclipse JDTLS snapshot for headless installation
@@ -129,6 +135,7 @@ RUN echo 'export PATH="$PATH:/opt/nvim/bin"' >> /root/.bashrc
 RUN mkdir -p /root/.config/nvim /root/.config/nvim/lua/plugins/ /root/.config/nvim/ftplugin/
 COPY init.lua /root/.config/nvim/init.lua
 COPY core.lua /root/.config/nvim/lua/plugins/core.lua
+COPY ai.lua /root/.config/nvim/lua/plugins/ai.lua
 COPY git.lua /root/.config/nvim/lua/plugins/git.lua
 COPY lang.lua /root/.config/nvim/lua/plugins/lang.lua
 COPY lsp.lua /root/.config/nvim/lua/plugins/lsp.lua
@@ -149,6 +156,8 @@ RUN mkdir -p /usr/share/fonts/truetype/jetbrains-mono && \
     unzip -q JetBrainsMono.zip -d /usr/share/fonts/truetype/jetbrains-mono && \
     rm JetBrainsMono.zip && \
     fc-cache -fv
+
+RUN curl -LsSf https://astral.sh/ruff/install.sh | sh
 
 RUN nvim --headless "+Lazy! sync" +qa
 

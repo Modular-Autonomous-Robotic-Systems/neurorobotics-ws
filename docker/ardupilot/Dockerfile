@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
     pre-commit \
     junitparser \
     empy==3.3.4 \
+    libbz2-dev \
     future \
     lxml
 
