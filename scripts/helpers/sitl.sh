@@ -48,7 +48,7 @@ setup_airsim_ros_pkgs_for_docker_build(){
 
 	image="$userName/nrt:camera"
 	filepath="$NRT_WS/docker/nrt/camera"
-	platform="linux/amd64,linux/arm64"
+	platform="linux/amd64"
 	container_name="init_container"
 	source $NRT_WS/scripts/start.sh "$NRT_WS" "$container_name" "$image"
 	iexec init_container "ls && echo \"Starting Container Setup\" && /ws/scripts/git-setup.sh $3 $userEmail $userName && /ws/scripts/docker-setup.sh"
