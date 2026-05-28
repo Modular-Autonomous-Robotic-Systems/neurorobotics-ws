@@ -6,25 +6,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl && \
 	apt install /tmp/ros2-apt-source.deb
 
 # install ros2 packages
-RUN apt-get update && apt-get install -y --no-install-recommends \
-	ros-humble-ros-core=0.10.0-1* \
-	ros-humble-gazebo-ros-pkgs \
-	ros-humble-octomap-ros \
-	gazebo \
-	libgazebo-dev \
-	libgstreamer1.0-dev \
-	libgstreamer-plugins-base1.0-dev \
-	libasio-dev \
-	libbz2-dev \
-	libepoxy-dev \
-	libglew-dev \
-	libeigen3-dev \
-	libopencv-dev \
-	libflann-dev  && \
+RUN apt-get update && apt-get install -y --no-install-recommends ros-humble-ros-core=0.10.0-1* && \
 	rm -rf /var/lib/apt/lists/*
 
-ENV gazebo_DIR=/usr/lib/x86_64-linux-gnu/cmake/gazebo
-ENV CMAKE_PREFIX_PATH=$CMAKE_PREFIX_PATH:/usr/lib/x86_64-linux-gnu/cmake/gazebo	
 # install ros2 packages
 RUN apt-get update && \
 	apt-get install -y --no-install-recommends ros-humble-ros-base=0.10.0-1* && \
@@ -51,17 +35,6 @@ RUN apt-get update && apt-get install -y libi2c-dev ros-humble-tf2-ros ros-humbl
 
 RUN ulimit -c unlimited
 RUN sysctl -w kernel.core_pattern="/tmp/%e_core.%p"
-
-# Build Pangolin
-RUN cd /tmp && \
-    git clone https://github.com/stevenlovegrove/Pangolin.git && \
-    cd Pangolin && \
-    mkdir build && \
-    cd build && \
-    cmake .. && \
-    make -j2 && \
-    make install
-
 WORKDIR /ws
 
 # setup environment
