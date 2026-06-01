@@ -11,6 +11,7 @@ build_airsim_docker_image() {
     cd -
 }
 
+
 # DEPRECATED
 # TODO Remove in later versions
 build_sitl_docker_image() {
