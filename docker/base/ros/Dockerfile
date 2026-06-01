@@ -12,15 +12,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	ros-humble-octomap-ros \
 	gazebo \
 	libgazebo-dev \
-	libgstreamer1.0-dev \
-	libgstreamer-plugins-base1.0-dev \
 	libasio-dev \
 	libbz2-dev \
 	libepoxy-dev \
 	libglew-dev \
-	libeigen3-dev \
-	libopencv-dev \
-	libflann-dev  && \
+	libeigen3-dev  && \
 	rm -rf /var/lib/apt/lists/*
 
 ENV gazebo_DIR=/usr/lib/x86_64-linux-gnu/cmake/gazebo
@@ -52,15 +48,7 @@ RUN apt-get update && apt-get install -y libi2c-dev ros-humble-tf2-ros ros-humbl
 RUN ulimit -c unlimited
 RUN sysctl -w kernel.core_pattern="/tmp/%e_core.%p"
 
-# Build Pangolin
-RUN cd /tmp && \
-    git clone https://github.com/stevenlovegrove/Pangolin.git && \
-    cd Pangolin && \
-    mkdir build && \
-    cd build && \
-    cmake .. && \
-    make -j2 && \
-    make install
+
 
 WORKDIR /ws
 

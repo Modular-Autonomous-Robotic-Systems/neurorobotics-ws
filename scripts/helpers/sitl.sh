@@ -14,7 +14,7 @@ build_airsim_docker_image(){
 build_sitl_docker_image(){
 	image="$userName/nrt:sitl"
 	filepath="$NRT_WS/docker/nrt/sitl"
-	platform="linux/amd64"
+	platform="linux/amd64,linux/arm64"
 	docker build -t shandilya1998/nrt_ardupilot:dev-ros -f docker/ardupilot/ardupilot_dev_docker/docker/Dockerfile_dev-ros --push .
 	build_image $platform $image $filepath
 }
@@ -48,7 +48,7 @@ setup_airsim_ros_pkgs_for_docker_build(){
 
 	image="$userName/nrt:camera"
 	filepath="$NRT_WS/docker/nrt/camera"
-	platform="linux/amd64"
+	platform="linux/amd64,linux/arm64"
 	container_name="init_container"
 	source $NRT_WS/scripts/start.sh "$NRT_WS" "$container_name" "$image"
 	iexec init_container "ls && echo \"Starting Container Setup\" && /ws/scripts/git-setup.sh $3 $userEmail $userName && /ws/scripts/docker-setup.sh"
