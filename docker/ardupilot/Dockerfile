@@ -87,5 +87,13 @@ RUN chmod +x build.sh && ./build.sh
 
 WORKDIR /ws
 
+# Gazebo dependencies
+RUN apt-get update && apt-get install -y \
+    ros-humble-gazebo-ros-pkgs \
+    ros-humble-octomap-ros \
+    gazebo \
+    libgazebo-dev && \
+    rm -rf /var/lib/apt/lists/*
+
 ENTRYPOINT ["/ros_entrypoint.sh"]
 CMD ["bash"]

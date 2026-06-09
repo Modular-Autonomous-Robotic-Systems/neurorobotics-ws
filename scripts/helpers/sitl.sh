@@ -10,7 +10,6 @@ build_airsim_docker_image() {
     python3 build_airsim_image.py --source --target_image="shandilya1998/nrt_airsim:0.0.1" --base_image="ghcr.io/epicgames/unreal-engine:dev-5.5"
     cd -
 }
-
 # DEPRECATED
 # TODO Remove in later versions
 build_sitl_docker_image() {
@@ -54,6 +53,7 @@ setup_airsim_ros_pkgs_for_docker_build() {
     source $NRT_WS/scripts/start.sh "$NRT_WS" "$container_name" "$image"
     iexec init_container "ls && echo \"Starting Container Setup\" && /ws/scripts/git-setup.sh $3 $userEmail $userName && /ws/scripts/docker-setup.sh"
     iexec init_container "mkdir -p /ws/docker/$directory/airsim_ws/src/AirSim && \
+
 		cp -r /ws/envs/ue5/AirSim/cmake/ \
 		/ws/envs/ue5/AirSim/AirLib/ \
 		/ws/envs/ue5/AirSim/AirSim.sln \
