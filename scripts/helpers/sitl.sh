@@ -10,8 +10,6 @@ build_airsim_docker_image() {
     python3 build_airsim_image.py --source --target_image="shandilya1998/nrt_airsim:0.0.1" --base_image="ghcr.io/epicgames/unreal-engine:dev-5.5"
     cd -
 }
-
-
 # DEPRECATED
 # TODO Remove in later versions
 build_sitl_docker_image() {
