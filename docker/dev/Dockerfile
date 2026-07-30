@@ -23,6 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ncurses-base \
     locales \
     xclip \
+    python3-pylatexenc \
     openssh-client \
     && rm -rf /var/lib/apt/lists/*
 
@@ -46,7 +47,7 @@ ARG CACHEBUST=1
 RUN curl -fsSL https://claude.ai/install.sh | bash
 # Point Claude to the bind-mounted config dir so credentials persist across containers
 ENV CLAUDE_CONFIG_DIR=/root/.claude
-RUN npm install -g @google/gemini-cli@0.17.1 @zed-industries/claude-code-acp pyright bash-language-server dockerfile-language-server-nodejs tree-sitter-cli
+RUN npm install -g @google/gemini-cli @zed-industries/claude-agent-acp pyright bash-language-server dockerfile-language-server-nodejs tree-sitter-cli@0.25.10
 
 # --- Install Java LSP (JDTLS) ---
 # Downloading Eclipse JDTLS snapshot for headless installation

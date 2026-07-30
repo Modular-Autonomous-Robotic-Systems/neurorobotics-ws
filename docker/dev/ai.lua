@@ -4,15 +4,14 @@ return {
         "carlos-algms/agentic.nvim",
         event = "VeryLazy",
         opts = {
-            -- Default provider: gemini (current behaviour preserved)
-            provider = "gemini-acp",
+            provider = "claude-agent-acp",
 
             acp_providers = {
                 ["gemini-acp"] = {
                     command = "gemini",
                 },
-                ["claude-acp"] = {
-                    command = "claude-acp",
+                ["claude-agent-acp"] = {
+                    command = "claude-agent-acp",
                 },
             },
 
@@ -42,14 +41,14 @@ return {
 
             -- Sidebar management
             {
-                "<leader>at",
+                "<leader>zt",
                 function()
                     require("agentic").toggle()
                 end,
                 desc = "AI: Toggle sidebar",
             },
             {
-                "<leader>al",
+                "<leader>zl",
                 function()
                     require("agentic").rotate_layout()
                 end,
@@ -58,7 +57,7 @@ return {
 
             -- Session management
             {
-                "<leader>an",
+                "<leader>zn",
                 function()
                     require("agentic").new_session()
                 end,
@@ -66,7 +65,7 @@ return {
                 desc = "AI: New session",
             },
             {
-                "<leader>ar",
+                "<leader>zr",
                 function()
                     require("agentic").restore_session()
                 end,
@@ -75,7 +74,7 @@ return {
 
             -- Context: send selection (visual) or current file (normal)
             {
-                "<leader>as",
+                "<leader>zs",
                 function()
                     require("agentic").add_selection_or_file_to_context()
                 end,
@@ -84,7 +83,7 @@ return {
             },
             -- Context: explicitly add current file
             {
-                "<leader>af",
+                "<leader>zf",
                 function()
                     require("agentic").add_file()
                 end,
@@ -93,14 +92,14 @@ return {
 
             -- Diagnostics
             {
-                "<leader>ad",
+                "<leader>zd",
                 function()
                     require("agentic").add_current_line_diagnostics()
                 end,
                 desc = "AI: Add current line diagnostics",
             },
             {
-                "<leader>aD",
+                "<leader>zD",
                 function()
                     require("agentic").add_buffer_diagnostics()
                 end,
@@ -109,7 +108,7 @@ return {
 
             -- Provider switching (preserves chat history)
             {
-                "<leader>am",
+                "<leader>zm",
                 function()
                     require("agentic").switch_provider()
                 end,
@@ -118,11 +117,35 @@ return {
 
             -- Stop generation
             {
-                "<leader>aq",
+                "<leader>zq",
                 function()
                     require("agentic").stop_generation()
                 end,
                 desc = "AI: Stop generation",
+            },
+        },
+    },
+    {
+        "MeanderingProgrammer/render-markdown.nvim",
+        -- ...
+        opts = {
+            file_types = { "markdown", "md", "AgenticChat" },
+            latex = {
+                enabled = true,
+                -- Appearance of the render
+                converter = "latex2text", -- Requires 'latex2text' installed on your system
+                highlight = "RenderMarkdownMath",
+                top_pad = 0,
+                bottom_pad = 0,
+            },
+            -- Important for agentic.nvim: ensure the plugin treats AI chat as markdown
+            overrides = {
+                buftype = {
+                    nofile = {
+                        -- This helps if agentic.nvim uses 'nofile' buffers
+                        enabled = true,
+                    },
+                },
             },
         },
     },

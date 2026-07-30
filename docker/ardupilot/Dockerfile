@@ -4,9 +4,15 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
     lsb-release \
     gawk \
     wget \
+    libbz2-dev \
     zip \
     default-jre \
     ros-humble-ffmpeg-image-transport \
+    ros-humble-geographic-msgs \
+    ros-humble-ament-black \
+    ros-humble-launch-pytest \
+    python3-geopy \
+    python3-geographiclib \
     socat && \
     python3 -m pip install --no-cache-dir -U pexpect \
     pyelftools \
@@ -15,15 +21,10 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
     pre-commit \
     junitparser \
     empy==3.3.4 \
-    libbz2-dev \
     future \
     lxml
 
-WORKDIR /ardu_ws/src
 RUN apt-get update
-
-COPY ./ros2.repos /ardu_ws/src/ros2.repos
-RUN vcs import --recursive < ros2.repos
 
 RUN apt-get update && \
     python3 -m pip install mavproxy --user && \
@@ -73,17 +74,11 @@ ENV BUILDLOGS=/tmp/buildlogs
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-COPY ./build.sh /ardu_ws/build.sh
-RUN chmod +x /ardu_ws/build.sh && /ardu_ws/build.sh
+
+RUN python3 -m pip install rpc-msgpack numpy && pip install --upgrade cosysairsim
 
 COPY ./ros_entrypoint.sh /
 RUN chmod +x /ros_entrypoint.sh
-
-WORKDIR /airsim_ws
-RUN python3 -m pip install rpc-msgpack numpy && pip install --upgrade cosysairsim
-ADD ./airsim_ws /airsim_ws
-COPY ./build_airsim.sh /airsim_ws/build.sh
-RUN chmod +x build.sh && ./build.sh
 
 WORKDIR /ws
 

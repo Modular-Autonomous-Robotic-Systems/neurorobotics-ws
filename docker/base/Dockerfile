@@ -87,6 +87,7 @@ RUN apt update && \
     python3-pytest-rerunfailures \
     python3-pytest-runner \
     python3-venv \
+    python3-pylatexenc \
     python3-pytest-timeout && \
     rm -rf /var/lib/apt/lists/*
 
@@ -101,7 +102,7 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
     rm -rf /var/lib/apt/lists/*
 
-RUN npm install -g @google/gemini-cli@0.17.1 @zed-industries/claude-code-acp pyright bash-language-server dockerfile-language-server-nodejs tree-sitter-cli
+RUN npm install -g @google/gemini-cli @zed-industries/claude-agent-acp pyright bash-language-server dockerfile-language-server-nodejs tree-sitter-cli@0.25.10
 
 # --- Install Java LSP (JDTLS) ---
 # Downloading Eclipse JDTLS snapshot for headless installation
@@ -158,6 +159,7 @@ RUN mkdir -p /usr/share/fonts/truetype/jetbrains-mono && \
     fc-cache -fv
 
 RUN curl -LsSf https://astral.sh/ruff/install.sh | sh
+ENV PATH="$PATH:/root/.local/bin"
 
 RUN nvim --headless "+Lazy! sync" +qa
 

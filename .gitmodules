@@ -11,6 +11,18 @@
 [submodule "docker/ardupilot/ardupilot_dev_docker"]
 	path = docker/ardupilot/ardupilot_dev_docker
 	url = git@github.com:ArduPilot/ardupilot_dev_docker.git
-[submodule "envs/ue5/AirSim"]
-	path = envs/ue5/AirSim
+[submodule "sitl_ws/src/ue5/AirSim"]
+	path = sitl_ws/src/ue5/AirSim
 	url = git@github.com:shandilya1998/AirSim.git
+[submodule "ardupilot"]
+	path = ardu_ws/src/ardupilot
+	url = git@github.com:ArduPilot/ardupilot.git
+	branch = master
+[submodule "ardu_ws/src/micro_ros_agent"]
+	path = ardu_ws/src/micro_ros_agent
+	url = git@github.com:micro-ROS/micro-ROS-Agent.git
+	branch = humble
+[submodule "ardu_ws/src/micro_ros_msgs"]
+	path = ardu_ws/src/micro_ros_msgs
+	url = git@github.com:micro-ROS/micro_ros_msgs.git
+	branch = humble

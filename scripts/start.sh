@@ -22,7 +22,7 @@ fi
 echo "platform=$platform"
 
 XAUTH=/tmp/.docker.xauth
-docker run -d -it -v $dir:/ws/ \
+docker run -d --rm -it -v $dir:/ws/ \
     -v ./.ssh:/root/.ssh \
     -v /dev:/dev \
     -v $NRT_WS/.gemini:/root/.gemini \
