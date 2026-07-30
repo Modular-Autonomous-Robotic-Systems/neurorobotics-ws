@@ -6,7 +6,7 @@
 # 			$NRT_WS/scripts/docker.sh
 
 build_airsim_docker_image() {
-    cd $NRT_WS/envs/ue5/AirSim/docker/
+    cd $NRT_WS/sitl_ws/src/ue5/AirSim/docker/
     python3 build_airsim_image.py --source --target_image="shandilya1998/nrt_airsim:0.0.1" --base_image="ghcr.io/epicgames/unreal-engine:dev-5.5"
     cd -
 }
@@ -41,6 +41,8 @@ stop_sitl_container() {
     docker stop sitl_bridge_container
 }
 
+# DEPRECATED
+# TODO Remove in later versions
 setup_airsim_ros_pkgs_for_docker_build() {
 
     directory=$1
@@ -49,22 +51,22 @@ setup_airsim_ros_pkgs_for_docker_build() {
         directory="ardupilot"
     fi
 
-    image="$userName/nrt:$VERSION"
+    image="$userName/nrt:base"
     container_name="init_container"
     source $NRT_WS/scripts/start.sh "$NRT_WS" "$container_name" "$image"
-    iexec init_container "ls && echo \"Starting Container Setup\" && /ws/scripts/git-setup.sh $3 $userEmail $userName && /ws/scripts/docker-setup.sh"
+    iexec init_container "ls && echo \"Starting Container Setup\" && /ws/scripts/git-setup.sh $userEmail $userName && /ws/scripts/docker-setup.sh"
     iexec init_container "mkdir -p /ws/docker/$directory/airsim_ws/src/AirSim && \
-		cp -r /ws/envs/ue5/AirSim/cmake/ \
-		/ws/envs/ue5/AirSim/AirLib/ \
-		/ws/envs/ue5/AirSim/AirSim.sln \
-		/ws/envs/ue5/AirSim/DroneShell \
-		/ws/envs/ue5/AirSim/HelloDrone \
-		/ws/envs/ue5/AirSim/HelloCar \
-		/ws/envs/ue5/AirSim/HelloSpawnedDrones \
-		/ws/envs/ue5/AirSim/MavLinkCom \
-		/ws/envs/ue5/AirSim/DroneServer \
-		/ws/envs/ue5/AirSim/AirLibUnitTests \
-		/ws/envs/ue5/AirSim/ros2 \
+		cp -r /ws/sitl_ws/src/ue5/AirSim/cmake/ \
+		/ws/sitl_ws/src/ue5/AirSim/AirLib/ \
+		/ws/sitl_ws/src/ue5/AirSim/AirSim.sln \
+		/ws/sitl_ws/src/ue5/AirSim/DroneShell \
+		/ws/sitl_ws/src/ue5/AirSim/HelloDrone \
+		/ws/sitl_ws/src/ue5/AirSim/HelloCar \
+		/ws/sitl_ws/src/ue5/AirSim/HelloSpawnedDrones \
+		/ws/sitl_ws/src/ue5/AirSim/MavLinkCom \
+		/ws/sitl_ws/src/ue5/AirSim/DroneServer \
+		/ws/sitl_ws/src/ue5/AirSim/AirLibUnitTests \
+		/ws/sitl_ws/src/ue5/AirSim/ros2 \
 		/ws/docker/$directory/airsim_ws/src/AirSim/ && \
 		echo \"here\" && \
 		ls /ws/docker/$directory/airsim_ws/src/AirSim/"

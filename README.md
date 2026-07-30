@@ -51,6 +51,34 @@ $ ./djinn init docker kalibr
     - `board` takes the name of the target board. For instance, board name for SpeedyBee F405 Wing is `SpeedyBeeF405WING`.
     - `configuration` takes the robot configuration as input. The values may be one of `plane`, `copter`, `rover` etc. Refer to ArduPilot documentation [here](https://ardupilot.org/dev/docs/building-setup-linux.html#building-setup-linux) for more reference.
 
+# SITL (ArduPilot + AirSim)
+
+The ArduPilot and AirSim ROS 2 workspaces are mounted (not baked into the image) under `ardu_ws/` and `sitl_ws/`. Populate their sources and build them at container-start:
+
+```
+$ git submodule update --init --recursive     # ardu_ws/src/*, sitl_ws/src/ue5/AirSim
+$ ./djinn init docker sitl                     # build the SITL bridge + AirSim images (+ QGroundControl)
+$ ./djinn up sitl_bridge                       # spawn the bridge container and build both workspaces
+```
+
+Build the workspaces individually:
+
+```
+$ ./djinn build ardupilot-sitl                 # builds /ws/ardu_ws
+$ ./djinn build airsim-sitl                    # builds /ws/sitl_ws
+$ ./djinn build sitl                           # builds both
+```
+
+Run the closed-loop simulation:
+
+```
+$ ./djinn start sitl                           # AirSim + SITL bridge + QGroundControl
+$ ./djinn start sitl orbslam3                  # with ORB_SLAM3
+$ ./djinn start sitl basalt                    # with Basalt
+```
+
+Editing ArduPilot (`ardu_ws/src/ardupilot`) or the AirSim wrapper (`sitl_ws/src/ue5/AirSim`) needs only a rebuild (`djinn build …`), not an image rebuild.
+
 # Miscellaneous Commands
 
 The following commands are also available through ./djinn:

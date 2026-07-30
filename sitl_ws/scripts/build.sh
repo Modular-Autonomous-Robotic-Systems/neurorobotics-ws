@@ -1,8 +1,10 @@
 #!/bin/bash
 
 source /opt/ros/humble/setup.bash
+# fixed ROS 2 dependencies (vision_opencv, ros2_shared) baked into the image
+source /ros_deps_ws/install/setup.bash
 
-cd /airsim_ws/src/AirSim
+cd /ws/sitl_ws/src/ue5/AirSim
 
 # Download rpclib
 if [ ! -d "external/rpclib/rpclib-2.3.1" ]; then
@@ -32,7 +34,6 @@ else
     echo "Eigen is already installed."
 fi
 
-cd /airsim_ws
-rosdep install --from-paths src -y --ignore-src --skip-keys pcl --skip-keys message_runtime --skip-keys message_generation
-rm -rf build install log
-colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release
+cd /ws/sitl_ws
+rosdep install --from-paths src/ue5/AirSim/ros2/src -y --ignore-src --skip-keys pcl --skip-keys message_runtime --skip-keys message_generation
+colcon build --base-paths src/ue5/AirSim/ros2/src --cmake-args -DCMAKE_BUILD_TYPE=Release

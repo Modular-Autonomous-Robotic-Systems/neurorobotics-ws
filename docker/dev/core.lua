@@ -2,12 +2,11 @@
 return {
     {
         "nvim-treesitter/nvim-treesitter",
-        branch = "master", -- v1 API; v2 (main) requires GLIBC 2.39 via tree-sitter-cli
         build = ":TSUpdate",
+        event = "BufReadPost", -- defer until a buffer is opened; prevents config racing install during headless sync
+        branch = "main",
         config = function()
-            require("nvim-treesitter.configs").setup({
-                branch = "master", -- v1 API; v2 (main) requires GLIBC 2.39 via tree-sitter-cli
-                build = ":TSUpdate",
+            require("nvim-treesitter.config").setup({
                 -- Parsers for the user's languages
                 ensure_installed = {
                     "c",
@@ -21,6 +20,7 @@ return {
                     "query",
                     "vim",
                     "vimdoc",
+                    "latex",
                     "markdown_inline",
                 },
                 sync_install = true,

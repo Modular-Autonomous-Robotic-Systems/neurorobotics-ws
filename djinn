@@ -22,6 +22,7 @@ source $NRT_WS/scripts/helpers/exec.sh
 # 1. build_image
 # 2. setup_nvim_config_for_image_build
 # 3. cleanup_nvim_config_after_image_build
+# 4. spawn_container_if_needed
 source $NRT_WS/scripts/helpers/docker.sh
 # sitl.sh declares all helper functions required for djinn and its derivative scripts
 # available methods are
@@ -66,7 +67,7 @@ elif [[ "$1" == "init" ]]; then
         if [[ -n "$3" ]]; then
             echo "============ BUILDING Image ============="
             if [[ "$3" == "nrt" ]]; then
-                echo "============ BUILDING Base Image ============="
+                # echo "============ BUILDING Base Image ============="
                 image="$userName/nrt:base"
                 filepath="$NRT_WS/docker/base/"
                 setup_nvim_config_for_image_build $filepath
@@ -88,14 +89,15 @@ elif [[ "$1" == "init" ]]; then
                 platform="linux/amd64,linux/arm64"
                 build_image $platform $image $filepath
                 echo "============ BUILDING NRT VERSION:$VERSION Image ============="
-                docker stop init_container && docker rm init_container
-                setup_airsim_ros_pkgs_for_docker_build "ardupilot"
+                # docker stop init_container && docker rm init_container
+                # setup_airsim_ros_pkgs_for_docker_build "ardupilot"
                 image="$userName/nrt:$VERSION"
                 filepath="$NRT_WS/docker/ardupilot"
                 platform="linux/amd64,linux/arm64"
                 build_image $platform $image $filepath
+                spawn_container_if_needed init_container shandilya1998/nrt:$VERSION
                 # init_container was spawned in setup_airsim_ros_pkgs_for_docker_build
-                iexec init_container "rm -rf /ws/docker/ardupilot/airsim_ws"
+                # iexec init_container "rm -rf /ws/docker/ardupilot/airsim_ws"
                 docker stop init_container
             elif [[ "$3" == "dev" ]]; then
                 image="$userName/nrt:dev"
@@ -107,7 +109,8 @@ elif [[ "$1" == "init" ]]; then
                     touch $NRT_WS/.claude.json
                 fi
                 source $NRT_WS/docker/scripts/start_ide.sh init_container $image
-                iexec init_container "gemini auth login"
+                # TODO gemini-cli is DEPRECATED need to replace with agy
+                iexec init_container "NO_BROWSER=true gemini -d"
                 iexec init_container "claude /login"
                 source $NRT_WS/docker/dev/install_nerd_font.sh
                 docker stop init_container
@@ -119,14 +122,11 @@ elif [[ "$1" == "init" ]]; then
                 echo "============ BUILDING SIMULATION Image ============="
                 build_airsim_docker_image
                 echo "============ BUILDING SITL BRIDGE Image ============="
-                setup_airsim_ros_pkgs_for_docker_build "ardupilot"
                 image="$userName/nrt:$VERSION"
                 filepath="$NRT_WS/docker/ardupilot"
                 platform="linux/amd64,linux/arm64"
                 build_image $platform $image $filepath
                 # init_container was spawned in setup_airsim_ros_pkgs_for_docker_build
-                iexec init_container "rm -rf /ws/docker/ardupilot/airsim_ws"
-                iexec init_container "rm -rf /ws/docker/nrt/sitl/airsim_ws"
                 if [[ ! -f "ext/QGroundControl.AppImage" ]]; then
                     echo "============ Fetching QGroundControl ============="
                     iexec init_container "wget https://d176tv9ibo4jno.cloudfront.net/latest/QGroundControl.AppImage -O /ws/ext/QGroundControl.AppImage"
@@ -156,12 +156,12 @@ elif [[ "$1" == "up" ]]; then
 
         if [[ "$2" == "nrt" ]]; then
             echo "=============== Initialising NRT Base Container ================"
-            source $NRT_WS/scripts/start.sh $NRT_WS nrt_container shandilya1998/nrt:$VERSION
+            spawn_container_if_needed nrt_container shandilya1998/nrt:$VERSION
             iexec_ros nrt_container "ls && echo \"Starting Container Setup\" && /ws/scripts/git-setup.sh $2 $userEmail $userName"
             iexec_ros nrt_container "/ws/scripts/build_ros_packages.sh"
         elif [[ "$2" == "dev" ]]; then
             echo "=============== Initialising NRT Development Container ================"
-            source $NRT_WS/docker/scripts/start_ide.sh dev_container shandilya1998/nrt:dev
+            spawn_container_if_needed dev_container shandilya1998/nrt:dev
             iexec dev_container "ls && echo \"Starting Container Setup\" && /ws/scripts/git-setup.sh $2 $userEmail $userName"
             # TODO add a link to the IDE Cheatsheet in the README.md with the repository
         elif [[ "$2" == "airsim" ]]; then
@@ -172,6 +172,8 @@ elif [[ "$1" == "up" ]]; then
             fi
         elif [[ "$2" == "sitl_bridge" ]]; then
             spawn_container_if_needed sitl_bridge_container shandilya1998/nrt:$VERSION
+            iexec_ros sitl_bridge_container "source /ws/ardu_ws/scripts/build.sh"
+            iexec_ros sitl_bridge_container "source /ws/sitl_ws/scripts/build.sh"
         elif [[ "$2" == "kalibr" ]]; then
             echo "============ Initialising Kalibr Container ============="
             source $NRT_WS/scripts/start.sh $NRT_WS kalibr_container shandilya1998/nrt:kalibr
@@ -222,8 +224,18 @@ elif [[ "$1" == "build" ]]; then
             if [[ ! -z "$4" ]]; then
                 configuration="$4"
             fi
-            iexec_sitl2 sitl_bridge_container "cd /ardu_ws/src/ardupilot && ./waf configure --enable-dds --board $board && ./waf $configuration"
-            iexec_sitl2 sitl_bridge_container "cp -r /ardu_ws/src/ardupilot/build/$board /ws/logs/$board"
+            iexec_sitl2 sitl_bridge_container "cd /ws/ardu_ws/src/ardupilot && ./waf configure --enable-dds --board $board && ./waf $configuration"
+            iexec_sitl2 sitl_bridge_container "cp -r /ws/ardu_ws/src/ardupilot/build/$board /ws/logs/$board"
+        elif [[ "$2" == "ardupilot-sitl" ]]; then
+            spawn_container_if_needed sitl_bridge_container "shandilya1998/nrt:$VERSION"
+            iexec_ros sitl_bridge_container "/ws/ardu_ws/scripts/build.sh"
+        elif [[ "$2" == "airsim-sitl" ]]; then
+            spawn_container_if_needed sitl_bridge_container "shandilya1998/nrt:$VERSION"
+            iexec_ros sitl_bridge_container "/ws/sitl_ws/scripts/build.sh"
+        elif [[ "$2" == "sitl" ]]; then
+            spawn_container_if_needed sitl_bridge_container "shandilya1998/nrt:$VERSION"
+            iexec_ros sitl_bridge_container "/ws/ardu_ws/scripts/build.sh"
+            iexec_ros sitl_bridge_container "/ws/sitl_ws/scripts/build.sh"
         fi
     fi
 
@@ -252,25 +264,18 @@ elif [[ "$1" == "start" ]]; then
             elif [[ "$3" == "basalt" ]]; then
                 echo "Starting Basalt"
                 spawn_container_if_needed nrt_container "shandilya1998/nrt:$VERSION"
+                # SLAM only. The simulator, ffmpeg encoder and managed recorder
+                # are already running from `djinn start sitl`
                 iexec_sitl2 nrt_container "export DISPLAY=:1 && ros2 launch controllers basalt_slam_test.launch.py \
-                    log-level:='INFO' \
-                    ap_status_topic_name:='/ap/status' \
-                    camera-topic:='camera' \
-                    calibration-file-path:='' \
-                    configuration-file-path:='' \
-                    slam-type:='VSLAM' \
-                    input_topic:='/camera/image_raw' \
-                    ffmpeg_topic:='/camera/image_ffmpeg' \
-                    ffmpeg_node_name:='raw_to_ffmpeg_republisher' \
-                    ap_type:='ArduPilot' \
-                    output_bag_name:='/ws/data/telemetry' \
-                    topics_to_record:='[ \'/ap/airspeed\', \'/ap/battery\', \'/ap/clock\', \
-                            \'/ap/cmd_gps_pose\', \'/ap/cmd_vel\', \'/ap/geopose/filtered\', \
-                            \'/ap/goal_lla\', \'/ap/gps_global_origin/filtered\', \
-                            \'/ap/imu/experimental/data\', \'/ap/joy\', \'/ap/navsat\', \
-                            \'/ap/pose/filtered\', \'/ap/status\', \'/ap/tf\', \
-                            \'/ap/tf_static\', \'/ap/time\', \'/ap/twist/filtered\', \
-                            \'/front_center_camera/compressed\']"
+                    log-level:=INFO \
+                    ap_status_topic_name:=/ap/status \
+                    camera-topic:=/airsim_node/Copter/front_center_Scene/image \
+                    calibration-file-path:=/ws/ros_ws/src/slam/ext/basalt/data/sitl_calib.json \
+                    configuration-file-path:=/ws/ros_ws/src/slam/ext/basalt/data/sitl_config_vo.json \
+                    slam-type:=VISLAM \
+                    use-sim-time:=True \
+                    use-visualisation:=True \
+                    imu-topic:=/ap/imu/experimental/data"
                 iexec nrt_container "ps -eawf | grep basalt | grep -v grep | awk '{print \$2}' | xargs -r kill -9"
             else
                 echo "Incorrect option for SITL application"
@@ -280,28 +285,37 @@ elif [[ "$1" == "start" ]]; then
             start_simulation "nature"
             echo "Starting Ardupilot"
             spawn_container_if_needed sitl_bridge_container "shandilya1998/nrt:$VERSION"
-            # gnome-terminal --title "ArduPilot" -- bash -c "$NRT_WS/envs/scripts/run_ardupilot.sh; exec bash"
-            gnome-terminal --title "AirSim" -- bash -c "$NRT_WS/envs/ue5/scripts/run_airsim.sh;"
+            gnome-terminal --title "AirSim" -- bash -c "$NRT_WS/sitl_ws/scripts/run_airsim.sh;"
             sleep 3
 
-            gnome-terminal --title "SITL Bridge" -- bash -c "$NRT_WS/envs/scripts/run_ardupilot_airsim_ros_sitl.sh;"
-            # source $NRT_WS/envs/scripts/run_sitl_ardupilot_bridge.sh
+            gnome-terminal --title "SITL Bridge" -- bash -c "$NRT_WS/ardu_ws/scripts/run_ardupilot_airsim_ros_sitl.sh; exec bash"
             gnome-terminal --title "QGroundControl" -- bash -c "$NRT_WS/ext/QGroundControl.AppImage"
         fi
         # stop_sitl_container
         # stop_simulation
     elif [[ "$2" == "ardupilot_target_recorder" ]]; then
         iexec_ros_ap "ros2 launch controllers "
+    elif [[ "$2" == "basalt" ]]; then
+        iexec_ros nrt_container "export DISPLAY=:1 && cd /ws/ros_ws/build/slam/ext/basalt && gdb --ex run --ex bt --ex q --args ./basalt_slam --cam-calib /ws/ros_ws/src/slam/ext/basalt/data/euroc_ds_calib.json --config-path /ws/ros_ws/src/slam/ext/basalt/data/euroc_config.json --dataset-type euroc --dataset-path /ws/ros_ws/src/slam/ext/basalt/data/machine_hall/MH_05_difficult/ --show-gui true"
     fi
 
 elif [[ $1 == "kill" ]]; then
     echo "Killing running proceses"
     if [[ "$2" == "sitl" ]]; then
-        echo "Killing SITL processes"
-        stop_sitl_container
-        stop_simulation
-        terminate_process "QGroundControl"
-        iexec nrt_container "ps -ef | grep airsim_ros_pkgs | grep -v grep | awk '{print \$2}' | xargs -r kill -9"
+        if [[ -n "$3" ]]; then
+            if [[ "$3" == "basalt" ]]; then
+                iexec nrt_container "ps -ef | grep basalt_slam_node | grep -v grep | awk '{print \$2}' | xargs -r kill -9"
+                iexec nrt_container "ps -ef | grep basalt_slam_controller | grep -v grep | awk '{print \$2}' | xargs -r kill -9"
+                iexec nrt_container "ps -ef | grep basalt_slam_test.launch.py | grep -v grep | awk '{print \$2}' | xargs -r kill -9"
+                iexec nrt_container "ps -ef | grep ros2cli.daemon.daemonize | grep -v grep | awk '{print \$2}' | xargs -r kill -9"
+            fi
+        else
+            echo "Killing SITL processes"
+            stop_sitl_container
+            stop_simulation
+            terminate_process "QGroundControl"
+            iexec nrt_container "ps -ef | grep airsim_ros_pkgs | grep -v grep | awk '{print \$2}' | xargs -r kill -9"
+        fi
     elif [[ $2 == "airsim" ]]; then
         if [[ ! -z "$last_run_sitl_env" ]]; then
             ps -eawf | grep "$last_run_sitl_env" | grep -v grep | awk '{print $2}' | xargs -r kill -9

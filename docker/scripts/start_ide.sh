@@ -5,7 +5,7 @@ image="$2"
 echo $name
 echo $image
 XAUTH=/tmp/.docker.xauth
-docker run --rm -d -it -v $NRT_WS:/ws/ \
+docker run -d -it -v $NRT_WS:/ws/ \
     -v ./.ssh:/root/.ssh \
     -v /dev:/dev \
     --device-cgroup-rule "c 81:* rmw" \

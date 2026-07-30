@@ -36,7 +36,9 @@ spawn_container_if_needed() {
             platform="$(uname -p)"
         fi
         if [[ "${name}" == "airsim_container" ]]; then
-            source $NRT_WS/envs/ue5/scripts/start.sh $NRT_WS/envs/ue5/AirSim/Unreal/Environments
+            source $NRT_WS/sitl_ws/scripts/start.sh $NRT_WS/sitl_ws/src/ue5/AirSim/Unreal/Environments
+        elif [[ "$name" == "dev_container" ]]; then
+            source $NRT_WS/docker/scripts/start_ide.sh dev_container shandilya1998/nrt:dev
         else
             source $NRT_WS/scripts/start.sh $NRT_WS "${name}" ${image_name} ${platform}
         fi

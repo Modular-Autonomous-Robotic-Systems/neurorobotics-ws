@@ -33,6 +33,17 @@ RUN colcon mixin add default https://raw.githubusercontent.com/colcon/colcon-mix
 
 RUN apt-get update && apt-get install -y libi2c-dev ros-humble-tf2-ros ros-humble-tf2-tools
 
+WORKDIR /ros_deps_ws/src
+RUN git clone -b humble https://github.com/ros-perception/vision_opencv.git && \
+    git clone -b master https://github.com/clydemcqueen/ros2_shared.git
+
+WORKDIR /ros_deps_ws
+RUN apt-get update && \
+    /bin/bash -c "source /opt/ros/humble/setup.bash && \
+    rosdep install --from-paths src -y --ignore-src --rosdistro humble && \
+    colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release" && \
+    rm -rf /var/lib/apt/lists/*
+
 RUN ulimit -c unlimited
 RUN sysctl -w kernel.core_pattern="/tmp/%e_core.%p"
 WORKDIR /ws
