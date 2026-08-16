@@ -15,6 +15,7 @@ vim.opt.number = true -- Show line numbers
 vim.opt.mouse = "a" -- Enable mouse support
 vim.opt.clipboard = "unnamedplus" -- Sync with system clipboard
 vim.opt.breakindent = true -- Maintain indent on wrapped lines
+vim.opt.diffopt:append("followwrap") -- Diff windows (e.g. gitsigns <leader>hd) respect 'wrap' instead of forcing nowrap
 vim.opt.undofile = true -- Save undo history
 vim.opt.ignorecase = true -- Case insensitive searching
 vim.opt.smartcase = true -- ...unless capital letter used

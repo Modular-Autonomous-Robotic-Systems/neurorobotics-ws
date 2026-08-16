@@ -1,0 +1,9 @@
+- When a change supersedes code that implemented a now-abandoned decision, comment the old code out in place per §2 rather than deleting it. Routine dead-code removal is unaffected and should still delete outright.
+- Evaluate options before making a change, not after, with the goal of writing as little code as possible while preserving backwards compatibility absolutely.
+- No change may alter the behaviour of an existing caller that did not ask for the change.
+- Before editing anything in a shared module, enumerate its callers across every configuration, since shared functions may be consumed by multiple tasks and an in-place edit silently changes all of them, invalidating comparison against in-flight and historical runs.
+- Where an optional argument can carry the new behaviour without altering the method's existing logic, prefer an optional argument whose default reproduces the old behaviour exactly, set explicitly only in the calling configuration.
+- Only where no optional argument can preserve the old behaviour should a v2 of the method be created, with the calling configuration repointed at it and the original left untouched.
+- Record any defect left standing in the untouched original or the unset default, so that other implementations may opt in deliberately.
+- Add as little comments as possible when not writing function description. Comments should only be added when reading the code does not sufficiently provide all context required to understand the larger context
+- Comments should be as succinct as possible. Function description comments should only describe the function of the method and any additional information regarding larger code context is to be left to the reader to infer from reading the code itself and not comments.

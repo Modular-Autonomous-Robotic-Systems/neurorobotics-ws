@@ -1,8 +1,8 @@
 # `djinn` workflow & test catalogue
 
-Durable, AI-facing catalogue of every `djinn` workflow: its invocation, the call chain (helper functions + scripts) it drives, the side effects (containers/images/files) it produces, the expected outcome, and a validation/test strategy. It exists so the (currently manual) validation of these workflows can be **automated later** without re-deriving intent from source. **Maintenance rule (also in `CLAUDE.md §3`): every new or changed `djinn` workflow MUST be added/updated here in the same change.** Seeded 2026-07-24 from the SITL workspace-mounting migration — see [sitl-workspace-migration.md](sitl-workspace-migration.md) and [djinn-cli.md](djinn-cli.md).
+Durable, AI-facing catalogue of every `djinn` workflow: its invocation, the call chain (helper functions + scripts) it drives, the side effects (containers/images/files) it produces, the expected outcome, and a validation/test strategy. It exists so the (currently manual) validation of these workflows can be **automated later** without re-deriving intent from source. **Maintenance rule (also in `CLAUDE.md §4`): every new or changed `djinn` workflow MUST be added/updated here in the same change.** Seeded 2026-07-24 from the SITL workspace-mounting migration — see [sitl-workspace-migration.md](sitl-workspace-migration.md) and [djinn-cli.md](djinn-cli.md).
 
-Grammar: `djinn <verb> <subject> <args>`. Helpers are sourced from `scripts/helpers/{data,exec,docker,sitl}.sh`. Runtime containers mount `$NRT_WS` → `/ws` (`scripts/start.sh`). Current image `VERSION=0.1.0` (`.djinn_config`).
+Grammar: `djinn <verb> <subject> <args>`. Helpers are sourced from `scripts/helpers/{data,exec,docker,sitl,ai}.sh`. Runtime containers mount `$NRT_WS` → `/ws` (`scripts/start.sh`). Current image `VERSION=0.1.0` (`.djinn_config`).
 
 ## Legend for "Test strategy"
 Because these cannot run in the dev container, each entry lists a **precondition**, an **action**, and an **observable assertion** an automated harness can check (exit code, file existence, `ros2 pkg prefix`, `djinn ps`, log grep).
@@ -76,7 +76,7 @@ Because these cannot run in the dev container, each entry lists a **precondition
 | Workflow | Call chain (key) | Expected / test |
 |---|---|---|
 | `djinn init docker nrt` | `build_image` chain base→ros→pangolin→camera→ardupilot (`nrt:$VERSION`) | all five images exist; final = `nrt:0.1.0` |
-| `djinn init docker dev` | `build_image nrt:dev`; `start_ide.sh`; gemini/claude login; nerd-font | `nrt:dev` exists; IDE container reachable |
+| `djinn init docker dev [git-setup-flag]` | `build_image nrt:dev`; Claude skills symlink; `start_ide.sh`; `[git-setup-flag]` non-empty and not `skip-git-setup` → `docker-setup.sh` then `git-setup.sh` in `init_container`; unconditional `CLAUDE.md`↔`GEMINI.md` directive-symlink traversal via `scripts/helpers/ai.sh`'s `sync_directive_pair`; `claude`/`agy` login; nerd-font | `nrt:dev` exists; IDE container reachable; run once as `djinn init docker dev init-git-setup` before any other `init docker` target, then bare thereafter — see [djinn-cli.md](djinn-cli.md) and [ai-directive-architecture.md](ai-directive-architecture.md) |
 | `djinn init docker kalibr` | `build_image nrt:kalibr` from `ext/calibration/kalibr` | `nrt:kalibr` exists |
 | `djinn up nrt` | `spawn_container_if_needed nrt_container` → `git-setup.sh` → `build_ros_packages.sh` | `nrt_container` running; `ros_ws/install` built |
 | `djinn up dev` | `spawn_container_if_needed dev_container` (→ `start_ide.sh`) | `dev_container` running |

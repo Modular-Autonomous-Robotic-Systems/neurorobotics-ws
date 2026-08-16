@@ -20,7 +20,7 @@ This is how R&D is done in this workspace — for hardware and software alike. E
 
 Before reading source, load the high-level picture — cheaply, README-first, and across the whole tree available at the invocation point:
 
-1. Read the **project root `README.md`**, **`ARCHITECTURE.md`**, and the **`README.md` index of `context/` and `plans/`** — at the directory where you were invoked.
+1. Read the **project root `README.md`**, **`ARCHITECTURE.md`**, and the **`README.md` index of `context/` and `plans/`** — at the directory where you were invoked and all nested directories. Traverse the directory tree to find all `README.md`, `ARCHITECTURE.md` and the `context/` and `plan/` directories as instructed in the next step.
 2. Do the same in **every subdirectory and submodule** under that root that has them. Submodules may carry their own `README.md`, `ARCHITECTURE.md`, `context/`, and `plans/`; assembling all of them gives the full project context and change history. **When invoked at a submodule root, that submodule's `context/` and `plans/` govern.**
 3. Enter `context/` and `plans/` **through their `README.md` index tables** — open only the specific files the index points to for this task. Do not blind-scan the repo when a context or plan file already covers the topic.
 
