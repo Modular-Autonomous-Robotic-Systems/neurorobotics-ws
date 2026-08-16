@@ -6,6 +6,8 @@
 # 1. sync_directive_pair
 
 # Ensures CLAUDE.md and GEMINI.md are symlinked to each other in $1.
+# TODO need to make sure additional skills in ./skills are also linked programmatically down the line
+# Will need to create appropriate mechanism here
 sync_directive_pair() {
     local dir="$1"
     local claude="$dir/CLAUDE.md"

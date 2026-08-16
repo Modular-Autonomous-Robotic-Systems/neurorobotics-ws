@@ -100,28 +100,29 @@ elif [[ "$1" == "init" ]]; then
                 # init_container was spawned in setup_airsim_ros_pkgs_for_docker_build
                 # iexec init_container "rm -rf /ws/docker/ardupilot/airsim_ws"
                 docker stop init_container
+                docker rm init_container
             elif [[ "$3" == "dev" ]]; then
                 image="$userName/nrt:dev"
                 filepath="$NRT_WS/docker/dev/"
                 build_image $platform $image $filepath
                 docker pull $image
-                mkdir -p $NRT_WS/.claude $NRT_WS/.gemini
+                mkdir -p $NRT_WS/.claude $NRT_WS/.gemini $NRT_WS/.claude/skills
                 if [[ ! -f $NRT_WS/.claude.json ]]; then
                     touch $NRT_WS/.claude.json
                 fi
-                mkdir -p $NRT_WS/.claude/skills
-                ln -sfn /ws/skills/nrt-RandD-workflow $NRT_WS/.claude/skills/nrt-RandD-workflow
                 source $NRT_WS/docker/scripts/start_ide.sh init_container $image
+                iexec init_container "ln -sfn /ws/skills/nrt-RandD-workflow /ws/.claude/skills/nrt-RandD-workflow"
                 # $4 protects the git/submodule step: pass skip-git-setup, on for a routine image refresh;
                 # pass any other value, e.g. init-git-setup or omit the argument to ensure git setup is performed
+                iexec init_container "source /ws/scripts/git-setup.sh $userEmail $userName"
                 if [[ -n "$4" ]]; then
                     if [[ "$4" == "skip-git-setup" ]]; then
                         echo "skipping git submodule setup"
                     else
-                        iexec init_container "source /ws/scripts/docker-setup.sh && source /ws/scripts/git-setup.sh $userEmail $userName"
+                        iexec init_container "source /ws/scripts/docker-setup.sh"
                     fi
                 else
-                    iexec init_container "source /ws/scripts/docker-setup.sh && source /ws/scripts/git-setup.sh $userEmail $userName"
+                    iexec init_container "source /ws/scripts/docker-setup.sh"
                 fi
                 iexec init_container "source /ws/scripts/helpers/ai.sh && \
                     sync_directive_pair /ws && \
@@ -134,6 +135,7 @@ elif [[ "$1" == "init" ]]; then
                 iexec init_container "agy -p '/usage'"
                 source $NRT_WS/docker/dev/install_nerd_font.sh
                 docker stop init_container
+                docker rm init_container
             elif [[ "$3" == "airsim" ]]; then
                 echo "============ BUILDING SIMULATION Image ============="
                 build_airsim_docker_image
