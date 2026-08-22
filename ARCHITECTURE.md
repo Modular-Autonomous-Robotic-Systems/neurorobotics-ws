@@ -6,9 +6,9 @@ The Neurorobotics Workspace (NRT_WS) is a comprehensive environment tailored for
 The primary motivation behind this workspace is to bridge the gap between complex software dependencies (ROS 2, ArduPilot, AirSim, ORB_SLAM3, multi-architecture build setups) and ease of use. By providing high-level orchestration, the workspace simplifies workflows, removes the friction of environment setup across multiple platforms (arm64, amd64), and offers automation tools for building, testing, and deploying complex robotic AI systems.
 
 ## 2. Docker
-Docker is the cornerstone of this workspace, ensuring reproducible and consistent environments without polluting the host system. The workspace utilizes a strict linear hierarchy of layered Docker images to separate concerns and cache dependencies efficiently:
+Docker is the cornerstone of this workspace, ensuring reproducible and consistent environments without polluting the host system. The workspace utilizes a strict linear hierarchy of layered Docker images to separate concerns and cache dependencies efficiently.
 
-**Docker Image Dependency Graph:**
+### 2.1 NRT Docker Image Dependency Graph
 `docker/base`
   └── `docker/ros`
         └── `docker/pangolin`
@@ -22,8 +22,14 @@ Subsequent images must be built on top of the image at `docker/ardupilot`.
 *   **`docker/camera`**: Built on top of `docker/pangolin`, adding hardware interface dependencies like `libcamera` (including specific Raspberry Pi configurations) and `libi2c-dev` for MPU6050.
 *   **`docker/ardupilot`**: Built on top of `docker/camera`, this final stage installs the ArduPilot and AirSim SITL *toolchain and dependencies only* (ARM GCC, the Micro-XRCE-DDS generator, MAVProxy, and the associated Python packages) and is tagged as `shandilya1998/nrt:0.1.0`. Unlike earlier revisions, it **no longer bakes the ArduPilot or AirSim ROS 2 workspaces into the image**. Those workspaces now live under the workspace root (`ardu_ws/`, `sitl_ws/`), are mounted into the container via the `/ws` bind-mount, and are compiled at container-start (see the *Workspaces* section). This keeps workspace edits out of the image-build critical path.
 
-**Development Environment:**
-*   **`docker/dev`**: A completely separate image containing a Neovim IDE configured with the Gemini CLI companion. It is strictly a development environment and *does not* contain the runtime dependencies found in the `nrt` stack.
+### 2.2 Simulation Images
+
+The two simulator images do not derive from the `nrt` chain at all. They are built on Epic's Unreal Engine development images, pin different engine versions on purpose, and carry no workspace source, since the source arrives through the `/ws` bind mount at container start.
+*   **`sitl_ws/src/ue5/AirSim/docker/Dockerfile_source`**: the Cosys-AirSim image `shandilya1998/nrt_airsim:0.0.1`, built on `ghcr.io/epicgames/unreal-engine:dev-5.5` by `build_airsim_image.py` (`djinn init docker airsim`). Compiles with the *system* clang and therefore installs `clang`, `lld`, `llvm-dev` and `libc++-dev`.
+*   **`docker/airsim`**: the Project AirSim image `shandilya1998/nrt_airsim:0.0.2`, built on the locally built `shandilya1998/nrt:unreal` (`djinn init docker airsim2`), itself Unreal Engine 5.7 on an Ubuntu 22.04 userland compiled by `docker/scripts/build_unreal.sh`, rather than on any of Epic's published `ghcr.io/epicgames/unreal-engine` images, which are Ubuntu 18.04. Compiles with the *engine* clang, selected purely by `UE_ROOT` being set, and therefore installs none of the above. Adds the Vulkan runtime and the desktop stack needed to run the Unreal editor interactively. Runs as the `ue4` user, not root, because Unreal Build Tool and the editor write into the engine tree and into `$HOME`. Since 2026-08-16 it also carries the same Neovim IDE, Claude Code and Antigravity CLI as `docker/dev`, homed under `/home/ue4` rather than `/root`, so the Unreal/Project AirSim source can be edited in place. See [`context/project-airsim-docker-build.md`](context/project-airsim-docker-build.md) and [`context/dev-ide-ai-clis.md`](context/dev-ide-ai-clis.md).
+
+### Development Environment
+*   **`docker/dev`**: A completely separate image containing a Neovim IDE with Claude Code and Antigravity CLI (`agy`) driven from the editor over the Agent Client Protocol through `agentic.nvim`. It is strictly a development environment and *does not* contain the runtime dependencies found in the `nrt` stack.
 
 ### Docker Scripts and Positional Arguments
 The workspace utilizes specific shell scripts to manage image building and container spawning. Their positional arguments are as follows:
@@ -50,7 +56,7 @@ The codebase in the toolkit is largely distributed between workspaces each conta
 
 *   **`ros_ws/`** — the neurorobotics-toolkit (SLAM, controllers, sensors, and message packages). Built by `scripts/build_ros_packages.sh` (`djinn build nrt`).
 *   **`ardu_ws/`** — the ArduPilot SITL flight-controller stack and its micro-ROS DDS bridge. Built by `ardu_ws/scripts/build.sh` (`djinn build ardupilot-sitl`).
-*   **`sitl_ws/`** — the Cosys-AirSim ROS 2 wrapper and the Unreal Engine simulation environments. Built by `sitl_ws/scripts/build.sh` (`djinn build airsim-sitl`).
+*   **`sitl_ws/`** — the Cosys-AirSim and Project AirSim ROS 2 wrappers and the Unreal Engine simulation environments. Both are built by `sitl_ws/scripts/build.sh` (`djinn build airsim-sitl`).
 
 A key design point: the workspace root (`$NRT_WS`) is bind-mounted into every runtime container at `/ws` (`scripts/start.sh`), so each of these workspaces is visible inside the container as `/ws/<workspace>` **without any additional Docker `-v` mount**. Because the sources are mounted rather than copied into the image, an edit to any workspace propagates into the container instantly and needs only a `djinn build …` recompile — never an image rebuild.
 
@@ -130,13 +136,18 @@ Firmware (non-SITL) builds for real boards still use `djinn build ardupilot <boa
 
 ### 3.3 `sitl_ws/`
 
-The Cosys-AirSim wrapper and Unreal Engine environments workspace.
+The simulator wrappers and Unreal Engine environments workspace. It carries **two** simulators side by side, deliberately kept in parallel so the same SLAM stack can be compared on identical inputs before the older one is retired.
 
 *   **`sitl_ws/src/ue5/AirSim`** — the full Cosys-AirSim fork as a git submodule (was `envs/ue5/AirSim`). Its ROS 2 packages (`airsim_ros_pkgs`, `airsim_interfaces`) live under `ros2/src/`; the repository also carries a ROS 1 (catkin) tree under `ros/`. Any code base invesigation requiring AirSim code must look at `sitl_ws/src/ue5/AirSim` for Cosys-AirSim source code. The simulation environments currently being used by AirSim can be found at `sitl_ws/src/ue5/AirSim/Unreal/Environments`.
-*   **`sitl_ws/scripts/build.sh`** — downloads rpclib/Eigen into the AirSim tree, then builds **only the ROS 2 subtree**: `rosdep`/`colcon` are scoped with `--from-paths`/`--base-paths src/ue5/AirSim/ros2/src` so the ROS 1 tree and stale colcon artifacts are not discovered. Invoked by `djinn build airsim-sitl` and by `djinn up sitl_bridge`.
-*   **`sitl_ws/scripts/start.sh`** / **`sitl_ws/scripts/run_airsim.sh`** — spawn the AirSim simulation container and launch a UE environment binary.
+*   **`sitl_ws/src/ue5/ProjectAirSim`** — Project AirSim (`iamaisim/ProjectAirSim`, MIT) as a git submodule, added 2026-08-03 and pinned to commit `7fb9c566`. Microsoft's own successor to AirSim, now maintained publicly by IAMAI Simulations. It replaces Cosys-AirSim's polling RPC transport with an NNG publish/subscribe topology (topics 8989, services 8990), publishes `rosgraph_msgs/Clock` on the **global** `/clock`, and exposes a configurable fixed-step clock with genuine pause and step. Its ROS 2 Humble bridge is `ros/projectairsim_ros2_cpp`. The workspace carries two local patches in this tree, a header-stamping fix and the `standalone_sim` link workaround, so the submodule reports dirty by design. Ported Unreal environments live under `unreal/`.
+*   **`sitl_ws/config/airsim2/`** — the Project AirSim scene, robot and ArduPilot parameter files, held in the superproject rather than inside the third-party submodule so they are version-controlled and diffable.
+*   **`sitl_ws/scripts/build.sh`** — downloads rpclib/Eigen into the AirSim tree, then builds **only the ROS 2 subtrees**: `rosdep`/`colcon` are scoped with `--from-paths`/`--base-paths src/ue5/AirSim/ros2/src src/ue5/ProjectAirSim/ros/projectairsim_ros2_cpp` so the ROS 1 trees and stale colcon artifacts are not discovered. Invoked by `djinn build airsim-sitl` and by `djinn up sitl_bridge`.
+*   **`sitl_ws/scripts/start.sh`** / **`sitl_ws/scripts/run_airsim.sh`** — spawn a simulation container and launch a UE environment binary. Both take a target argument, `airsim` or `airsim2`, defaulting to `airsim`.
+*   **`sitl_ws/scripts/build_airsim2_game.sh`** / **`sitl_ws/scripts/print_spawn_origin.py`** — package a Project AirSim Unreal environment, and read a map's spawn origin through the editor's Python commandlet.
 
-The UE4 environments remain at `envs/ue4/`; only the UE5 (Cosys-AirSim) setup moved under `sitl_ws/`.
+The two simulators pin different engine versions on purpose. The Cosys-AirSim image is built on UE 5.5 and the Project AirSim image on UE 5.7, pinned there since 2026-08-12 in place of the 5.2 it carried until then, once a version mismatch in a ported environment's map made the cost of staying on 5.2 concrete; see [`context/unreal-engine-packaging.md`](context/unreal-engine-packaging.md) §9 and §11 for the mismatch and the decision, and [`context/project-airsim-docker-build.md`](context/project-airsim-docker-build.md) §2 for the superseded 5.2 argument and why it no longer governs. Neither pin may be changed to match the other, since the two are still different versions by design.
+
+The UE4 environments remain at `envs/ue4/`; only the UE5 setups moved under `sitl_ws/`.
 
 ## 4. djinn
 `djinn` is the master CLI entry point and orchestration script for the workspace. It acts as an abstraction layer, hiding the complexities of Docker CLI commands, CMake invocations, and multi-process startup sequences behind a simple, unified interface.
@@ -151,10 +162,11 @@ Here is the breakdown of implemented verbs, their subjects, and command structur
     *   *Example*: `djinn install --docker --ssh --git`
 *   **`init`**: Configures the workspace and builds targeted Docker images.
     *   *Subjects*: `docker`.
-    *   *Arguments*: `nrt`, `dev`, `airsim`, `sitl`, `kalibr`.
+    *   *Arguments*: `nrt`, `dev`, `airsim`, `airsim2`, `sitl`, `kalibr`.
+    *   *Arguments for `airsim2`*: `<mode> <base_image>`, both optional. `<mode>` is a rebuild-mode selector, `force-all` forces a rebuild of the Unreal base image then the wrapper, `rebuild-base` runs the base-image build script but leaves its own existence guard in charge of whether it actually rebuilds, any other value, e.g. `rebuild-wrapper`, or an empty/omitted `<mode>` skips the base-image build and rebuilds only the wrapper. `<base_image>` overrides the locally built `shandilya1998/nrt:unreal` default (itself Unreal Engine 5.7 as of 2026-08-12, previously 5.2) and is read only when `<mode>` is given, e.g. `djinn init docker airsim2 rebuild-wrapper ghcr.io/epicgames/unreal-engine:dev-5.7`. Until 2026-08-14 the base image was the sole optional argument in the fourth position; it moved to the fifth position that day when the fourth became the mode selector. See [`context/djinn-workflows.md`](context/djinn-workflows.md) and [`context/project-airsim-docker-build.md`](context/project-airsim-docker-build.md) §2.
     *   *Example*: `djinn init docker sitl` (Builds the SITL simulation images).
 *   **`up`**: Spawns Docker containers based on the pre-built images.
-    *   *Subjects*: `nrt`, `dev`, `airsim`, `sitl_bridge`, `kalibr`.
+    *   *Subjects*: `nrt`, `dev`, `airsim`, `airsim2`, `sitl_bridge`, `kalibr`.
     *   *Example*: `djinn up nrt` (Starts the main runtime container).
 *   **`build`**: Compiles source code across various environments.
     *   *Subjects*: `nrt` (ROS packages), `docker` (images), `ardupilot` (Firmware), `ardupilot-sitl` (the `ardu_ws` ROS 2 workspace), `airsim-sitl` (the `sitl_ws` ROS 2 workspace), `sitl` (both SITL workspaces).
@@ -162,18 +174,18 @@ Here is the breakdown of implemented verbs, their subjects, and command structur
     *   *Example*: `djinn build ardupilot SpeedyBeeF405WING plane` (Builds fixed-wing firmware for the SpeedyBee board).
     *   *Example*: `djinn build sitl` (Builds both `ardu_ws` and `sitl_ws`; `djinn up sitl_bridge` performs the same two builds after spawning the bridge container).
 *   **`start`**: Launches specific high-level workflows or nodes.
-    *   *Subjects*: `tello`, `tello-orbslam3`, `sitl`, `ardupilot_target_recorder`.
-    *   *Arguments for `sitl`*: `orbslam3`, `basalt` (to specify SLAM integrations alongside the simulation).
+    *   *Subjects*: `tello`, `tello-orbslam3`, `sitl` (Cosys-AirSim), `sitl2` (Project AirSim), `ardupilot_target_recorder`.
+    *   *Arguments for `sitl` and `sitl2`*: `orbslam3`, `basalt` (to specify SLAM integrations alongside the simulation). The two are byte-identical, because `sitl2.launch.py` remaps the Project AirSim camera onto the Cosys-AirSim topic name.
     *   *Example*: `djinn start sitl orbslam3` (Starts closed-loop simulation stack with ORB_SLAM3).
 *   **`exec`**: Runs arbitrary shell commands inside targeted containers.
     *   *Subjects*: Container prefix (e.g., `nrt`, `dev`).
     *   *Arguments*: `<command>`.
     *   *Example*: `djinn exec nrt bash` (Opens a bash session in the `nrt` container).
 *   **`kill`**: Forcefully terminates active workflows and their sub-processes.
-    *   *Subjects*: `sitl`, `airsim`, `gqc`, `orbslam3`.
+    *   *Subjects*: `sitl`, `sitl2`, `airsim`, `airsim2`, `gqc`, `orbslam3`.
     *   *Example*: `djinn kill sitl` (Stops all SITL bridges, simulators, and QGroundControl).
 *   **`down`**: Gracefully stops specific or all Docker containers.
-    *   *Subjects*: Container prefix (e.g., `airsim`). If omitted, stops all workspace containers.
+    *   *Subjects*: Container prefix (e.g., `airsim`, `airsim2`). If omitted, stops all workspace containers. `airsim` and `airsim2` additionally remove the container.
     *   *Example*: `djinn down nrt`
 *   **`rmi`**: Removes built Docker images from the host system.
     *   *Subjects*: Image name or `all`.

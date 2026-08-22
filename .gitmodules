@@ -26,3 +26,11 @@
 	path = ardu_ws/src/micro_ros_msgs
 	url = git@github.com:micro-ROS/micro_ros_msgs.git
 	branch = humble
+[submodule "sitl_ws/src/ue5/ProjectAirSim"]
+	path = sitl_ws/src/ue5/ProjectAirSim
+	url = https://github.com/iamaisim/ProjectAirSim.git
+[submodule "UnrealEngine"]
+	path = sitl_ws/src/ue5/UnrealEngine
+	url = git@github.com:EpicGames/UnrealEngine.git
+	branch = 5.2
+	shallow = true

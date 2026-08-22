@@ -35,5 +35,11 @@ else
 fi
 
 cd /ws/sitl_ws
-rosdep install --from-paths src/ue5/AirSim/ros2/src -y --ignore-src --skip-keys pcl --skip-keys message_runtime --skip-keys message_generation
-colcon build --base-paths src/ue5/AirSim/ros2/src --cmake-args -DCMAKE_BUILD_TYPE=Release
+# The ROS 2 package directory is named rather than src/ue5/ProjectAirSim/ros,
+# because that parent also holds the catkin packages `node` and `examples` and
+# discovering either reproduces the over-reach the AirSim scoping prevents.
+rosdep install --from-paths src/ue5/AirSim/ros2/src src/ue5/ProjectAirSim/ros/projectairsim_ros2_cpp \
+    -y --ignore-src --skip-keys pcl --skip-keys message_runtime --skip-keys message_generation
+colcon build \
+    --base-paths src/ue5/AirSim/ros2/src src/ue5/ProjectAirSim/ros/projectairsim_ros2_cpp \
+    --cmake-args -DCMAKE_BUILD_TYPE=Release

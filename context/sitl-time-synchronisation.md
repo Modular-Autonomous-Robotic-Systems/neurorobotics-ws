@@ -1,6 +1,8 @@
 # Time synchronisation across AirSim, ArduPilot SITL and ROS 2
 
-Audited 2026-07-27. This file records how every clock in the SITL stack is constructed, which timestamp reaches which message field, and which of the available synchronisation mechanisms actually work. It spans three trees, `sitl_ws/src/ue5/AirSim` (Cosys-AirSim), `ardu_ws/src/ardupilot` (ArduPilot master) and `ros_ws/src` (the NRT ROS 2 packages), which is why it lives in the workspace-level `context/` rather than in any one of them.
+Audited 2026-07-27, extended 2026-08-03 with the Project AirSim clock model. This file records how every clock in the SITL stack is constructed, which timestamp reaches which message field, and which of the available synchronisation mechanisms actually work. It spans four trees, `sitl_ws/src/ue5/AirSim` (Cosys-AirSim), `sitl_ws/src/ue5/ProjectAirSim` (Project AirSim), `ardu_ws/src/ardupilot` (ArduPilot master) and `ros_ws/src` (the NRT ROS 2 packages), which is why it lives in the workspace-level `context/` rather than in any one of them.
+
+The two simulators now coexist and every section below that names AirSim without qualification describes Cosys-AirSim, which `djinn start sitl` still runs unchanged. The Project AirSim material is gathered in its own section at the end and none of the Cosys-AirSim measurements are superseded by it.
 
 Related, [`airsim.md`](airsim.md) for the AirSim and SITL data path, [`ardupilot-dds-qos.md`](ardupilot-dds-qos.md) for per-topic `/ap/*` publisher QoS, and [`../ros_ws/context/launch-and-djinn.md`](../ros_ws/context/launch-and-djinn.md) for the launch graph these clocks are configured from.
 
@@ -167,6 +169,130 @@ Substituting AirSim's own inertial topic does not by itself solve this. `/airsim
 
 `ros2 param get` was not run, so whether `use_sim_time` reached `basalt_slam_node` and `managed_logger_node` is unconfirmed. Note that `rclcpp` log line timestamps are always system time regardless of the parameter, so the log prefixes carry no information about it either way. Basalt reads header stamps and is unaffected by the parameter, so this does not bear on the offset measurement.
 
+## Re-measured 2026-07-31, duplicate stamps with changing payloads
+
+A stationary capture of `/ap/imu/experimental/data` was taken with two parameters changed from the 2026-07-28 run, `SCHED_LOOP_RATE 185` in `ardu_ws/src/ardupilot/Tools/autotest/default_params/airsim-quadX.parm:13` and `"ClockSpeed": 0.5` in `sitl_ws/src/ue5/AirSim/Unreal/Environments/settings.json:8`. The symptom reported was that the inertial values change from message to message while the header stamp does not. This section confirms that this is the quantisation already described above, identifies the exact line that produces it, and answers whether either parameter is implicated. Neither is the cause.
+
+### The exact mechanism, line by line
+
+The IMU message is assembled by `AP_DDS_Client::update_topic(sensor_msgs_msg_Imu&)` at `libraries/AP_DDS/AP_DDS_Client.cpp:668-701`. The first statement stamps the header and the later statements fill the payload, and the two draw from different sources.
+
+```cpp
+void AP_DDS_Client::update_topic(sensor_msgs_msg_Imu& msg)
+{
+    update_topic(msg.header.stamp);                       // frozen between /clock arrivals
+    STRCPY(msg.header.frame_id, BASE_LINK_NED_FRAME_ID);
+    auto &imu = AP::ins();
+    ...
+    const Vector3f accel_data = imu.get_accel(accel_index);   // read fresh on every call
+    const Vector3f gyro_data = imu.get_gyro(gyro_index);
+```
+
+`update_topic(msg.header.stamp)` is the time overload at `AP_DDS_Client.cpp:214-232`, which returns `external_clock_time` verbatim and unconditionally when `has_received_clock` is latched. That variable is written only by the `/clock` callback, so it holds its value between clock arrivals. The payload by contrast calls `AP::ins().get_accel()` and `get_gyro()` afresh on every invocation, and those read the current INS state, which the physics step updates continuously.
+
+The observation of changing values under an unchanging stamp is therefore not a fault, it is the exact and predicted behaviour of the external-clock branch. The stamp is not the sample time of the measurement, it is the value of the simulator clock as last delivered over DDS.
+
+### SCHED_LOOP_RATE is not implicated
+
+This was the leading hypothesis and it is wrong. AP_DDS does not run as a scheduler task and therefore never sees `SCHED_LOOP_RATE`. It is given its own thread at `AP_DDS_Client.cpp:802` via `hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_DDS_Client::main_loop, void), ...)`, and that thread's inner loop at `AP_DDS_Client.cpp:1332-1336` is
+
+```cpp
+while (connected) {
+    hal.scheduler->delay(1);
+    update();
+```
+
+so the publishing cadence is set by a 1 ms delay and by the per-topic gates inside `update()`, not by the vehicle main loop. The IMU gate is `AP_DDS_Client.cpp:1930-1934`, `if (cur_time_ms - last_imu_time_ms > DELAY_IMU_TOPIC_MS)`, with `DELAY_IMU_TOPIC_MS` defined as 5 at `libraries/AP_DDS/AP_DDS_config.h:33-34`. That is a nominal 200 Hz, and it is the origin of the `imu_update_rate: 200.0` recorded in the Basalt calibration.
+
+Both `cur_time_ms` at `AP_DDS_Client.cpp:1873` and the loop delay are measured in simulated time, because `AP_HAL::millis64()` under SITL returns the stopped clock and `Scheduler::delay` at `libraries/AP_HAL_SITL/Scheduler.cpp:146-159` loops on `AP_HAL::millis()`. The whole DDS publishing path is thus paced in simulator time and is insensitive to the main loop rate.
+
+Changing `SCHED_LOOP_RATE` would alter how fast the vehicle main loop consumes simulated time, and therefore the INS sample rate behind `get_accel()`, but it cannot change how many distinct stamps appear, because the stamp comes from `/clock` alone.
+
+### What ClockSpeed 0.5 actually does, and why it helps rather than harms
+
+`ASimModeWorldMultiRotor::setupClockSpeed` at `Unreal/Plugins/AirSim/Source/Vehicles/Multirotor/SimModeWorldMultiRotor.cpp:35-76` overrides the base implementation and treats speed-up and slow-down differently. For `clock_speed >= 1` it holds the step at the physics period and divides the period instead, with the comment recording that scaling the step directly makes quadrotors unstable. For `clock_speed < 1` it takes the simpler branch.
+
+```cpp
+else {
+    //for slowing down, this don't generate instability
+    ClockFactory::get(std::make_shared<msr::airlib::SteppableClock>(
+        static_cast<msr::airlib::TTimeDelta>(getPhysicsLoopPeriod() * 1E-9 * clock_speed)));
+}
+```
+
+With `physics_loop_period_ = 3000000LL` ns at `SimMode/SimModeWorldBase.h:75`, the steppable clock advances 1.5 ms per physics tick while the tick itself still targets 3 ms of wall time. Simulated time therefore advances at half the wall rate, which is the documented intent.
+
+Note that the base-class implementation at `SimMode/SimModeBase.cpp:1481-1498` scales `SteppableClock::DefaultStepSize`, which is 20 ms at `AirLib/include/common/SteppableClock.hpp:19`, rather than the physics period. That path is not taken for a multirotor and quoting its arithmetic would give a step of 10 ms rather than 1.5 ms.
+
+The consequence for stamp duplication is counter-intuitive and worth stating plainly. The `/clock` publisher is a wall timer, `create_wall_timer` at `ros2/src/airsim_ros_pkgs/src/airsim_ros_wrapper.cpp:141`, publishing from `drone_state_timer_cb` at `:1343-1344`. The IMU publisher is gated in simulated time. Halving the rate at which simulated time advances therefore doubles the number of `/clock` samples emitted per simulated second while leaving the IMU cadence per simulated second unchanged. `ClockSpeed: 0.5` consequently halves the duplication ratio. It is a partial mitigation bought at the price of running the simulation at half speed, and it does not remove the defect, because the ratio remains well above one.
+
+This is consistent with the two captures. At `ClockSpeed 1.0` on 2026-07-28 the run lengths were a mean of 11 and a worst case of 24. At `ClockSpeed 0.5` on 2026-07-31 the observed runs were 4 and 3.
+
+### The 2026-07-31 numbers, and their confidence
+
+| Quantity | Value | Basis |
+|---|---|---|
+| Distinct stamps observed | 2 over 7 messages | runs of 4 then 3 |
+| Stamp interval | 875960320 − 811464448 = 64495872 ns = 64.496 ms | consecutive `header.stamp.nanosec` |
+| Distinct-stamp rate, in the stamp time domain | 15.505 Hz | reciprocal of the above |
+| Messages per distinct stamp | at least 4 | lower bound, see below |
+| `frame_id` | `base_link_ned` | confirms NED, see the Basalt context |
+
+The stamp interval and the distinct-stamp rate are solid, since both derive from two exact integer fields. The messages-per-stamp figure is a lower bound rather than a measurement. The capture was a partial terminal paste that begins mid-message, and `ros2 topic echo` on a BEST_EFFORT topic may itself drop samples, so the true run length is at least four and may be considerably more. The nominal 200 Hz gate against a 15.5 Hz stamp rate predicts roughly thirteen, so the discrepancy should be resolved by direct measurement rather than by inference from this capture.
+
+Both `nanosec` values are exact multiples of 256, which is the representable spacing of a `double` at 1.79e18. Some stage of the AirSim clock path passes the nanosecond count through a `double` and quantises it to 256 ns. This is negligible beside a 64 ms interval and is recorded only so that it is not later mistaken for a second clock artefact.
+
+To measure the run length properly, count messages against unique stamps rather than reading them by eye.
+
+```bash
+ros2 topic echo /ap/imu/experimental/data --field header.stamp --once=false \
+  | grep -c nanosec                       # total messages
+ros2 topic echo /ap/imu/experimental/data --field header.stamp \
+  | grep nanosec | sort -u | wc -l        # distinct stamps
+ros2 topic hz /ap/imu/experimental/data   # wall-clock message rate
+ros2 topic hz /clock                      # wall-clock stamp-source rate
+```
+
+### Where ArduPilot's inertial data actually comes from, and why it is higher rate than the ROS topic
+
+Added 2026-07-31. The inertial data reaching ArduPilot does not pass through the ROS 2 bridge at any point. Both streams originate from the same `getImuData()` call inside AirSim and then take entirely separate transports, which is the reason their rates differ by more than an order of magnitude.
+
+| Aspect | Into ArduPilot | Into ROS 2 |
+|---|---|---|
+| Transport | UDP datagram, sensors on port 9003, servos on 9002, `SIM_AirSim.h:72,75` | msgpack RPC on port 41451 |
+| Sender | `ArduCopterApi::sendSensors()`, `ArduCopterApi.hpp:335-360` | `publish_vehicle_state()`, `airsim_ros_wrapper.cpp:1459-1500` |
+| Driven by | the physics loop, one datagram per tick, `physics_loop_period_ = 3000000LL` at `SimModeWorldBase.h:75` | `create_wall_timer` at `airsim_ros_wrapper.cpp:141` |
+| Nominal rate | ~333 Hz | 100 Hz |
+| Measured rate | one per tick, lockstep-gated | 14.05 Hz, 2026-07-28 |
+| Timestamp | `ClockFactory::get()->nowNanos()/1000` in the datagram, distinct per sample | `imu_data.time_stamp`, distinct per sample |
+
+The ArduPilot side is `ArduCopterApi::update()` at `ArduCopterApi.hpp:59-64`, which calls `sendSensors()` then blocks in `recvRotorControl()`, forming the lockstep handshake that gates the physics loop. ArduPilot receives it in `SITL::AirSim::recv_fdm()` at `SIM_AirSim.cpp:269-276`, a blocking socket read, parses it through the field table at `SIM_AirSim.h:140-142` and assigns the vectors directly at `SIM_AirSim.cpp:308-309`.
+
+```cpp
+accel_body = state.imu.linear_acceleration;
+gyro       = state.imu.angular_velocity;
+```
+
+The same datagram drives the clock, since `SIM_AirSim.cpp:323-325` advances `time_now_us` by the packet timestamp delta, and that value reaches `stopped_clock_usec` and therefore `AP_HAL::micros64()`.
+
+The conclusion worth carrying forward is that ArduPilot already holds a per-sample timestamp for every inertial measurement, resolved to the physics quantum, and `AP_DDS` throws it away. `update_topic(builtin_interfaces_msg_Time&)` returns on the external-clock branch before it ever reaches `AP::rtc()`, so a stamp good to 1.5 ms is replaced by one quantised to the `/clock` arrival interval. The high-rate, correctly-stamped inertial stream exists inside the autopilot and is discarded at the DDS serialisation boundary rather than being unavailable.
+
+### Consequences and the available remedies
+
+The conclusion already recorded above stands and is reinforced. Under `use_sim_time` this topic is a telemetry stream and not a visual-inertial odometry input, because the stamp is applied at DDS serialisation time from a coarsely sampled external clock rather than at sensor sample time.
+
+For the Basalt consumer specifically, `slam/src/basalt/node.cpp:195-206` drops any sample whose stamp equals the previous one, so the duplicates are discarded rather than fed to the estimator with `dt = 0`. That protects the preintegration from a division by zero but throws away every sample after the first in each run, which is at least three quarters of the inertial data. Basalt then receives roughly 15.5 samples per second. The `imu_update_rate` field in the calibration must be set from this distinct-stamp rate rather than from the nominal 200 Hz gate, because Basalt scales its per-sample noise as σ_c·√rate.
+
+Four remedies exist and they are not equivalent.
+
+Raising the `/clock` publication rate attacks the cause directly and preserves the epoch alignment that connecting `/clock` was introduced to achieve. The publisher is bound to `drone_state_timer_cb`, which also performs a blocking RPC round trip per sensor through `publish_vehicle_state()` at `airsim_ros_wrapper.cpp:1459-1500`, and that is why its nominal 100 Hz achieved only 14.05 Hz in the 2026-07-28 run. Moving the clock publication onto its own timer, independent of the state RPC, is the smallest change that would raise the rate materially, and it is a patch to the Cosys-AirSim bridge rather than to this workspace.
+
+Disabling `--use_sim_time` on the ArduPilot side restores per-sample stamps, because `update_topic` then falls through to `AP::rtc().get_utc_usec()`, which is `micros64() + rtc_shift` and advances every physics step. As established in the preceding subsection, that clock is driven by the 333 Hz lockstep datagram and resolves to the 1.5 ms physics quantum, so distinct stamps would appear at the full 200 Hz AP_DDS gate rather than at the `/clock` rate. The cost is the multi-second epoch offset against the AirSim camera stream. That offset is a fixed additive constant rather than a quantisation, and unlike quantisation it can be measured once and subtracted, so this option is stronger than it first appears and is not merely a diagnostic.
+
+Sourcing inertial data from AirSim directly avoids AP_DDS entirely and yields correct per-sample stamps, but `/airsim_node/Copter/imu/Imu` is published from the same `drone_state_timer_cb` and therefore carries the same low rate, as recorded above. It has the right timestamps and the wrong rate.
+
+Lowering `ClockSpeed` further would continue to reduce the duplication ratio proportionally, at a proportional cost in simulation speed. It is a mitigation and not a fix.
+
 ## The full ArduPilot time architecture, SITL against real hardware
 
 Audited 2026-07-28. Everything above concerns SITL. The same code paths behave differently on a real flight controller, and the differences decide what a HITL or hardware deployment can and cannot do.
@@ -308,3 +434,91 @@ The autopilot clock is stepped by the simulator, which is PX4 lockstep. ArduPilo
 The bridge estimates an offset and rebases, which is the MAVLink `TIMESYNC` pattern and what mavros implements. It requires no cooperation from the estimator but adds a convergence transient, residual jitter and the obligation to apply the rebasing consistently to every stream.
 
 For this stack the first option is the only one that is both correct and nearly free, because both endpoints already implement their half of it. AirSim can publish its clock, ArduPilot can consume it, and connecting the two collapses the offset to zero by construction rather than estimating it. The second option is unavailable because ArduPilot transfers deltas only. The third option would require patching the AirSim bridge or inserting a rebasing node, which is strictly more code for a strictly worse guarantee.
+
+---
+
+## Project AirSim, the second simulator, added 2026-08-03
+
+Everything above describes Cosys-AirSim and remains true of it. This section records the corresponding facts for Project AirSim, which `djinn start sitl2` runs, and it exists because the two simulators are deliberately kept side by side so that the same SLAM stack can be compared on identical inputs.
+
+### Why the migration was made at all
+
+Three defects of Cosys-AirSim measured in this workspace are architectural rather than configuration faults. The bridge polls the simulator over a msgpack remote procedure call, one blocking round trip per sensor per iteration, so a timer nominally at 100 Hz achieved 14.05 Hz on 2026-07-28. Because `/clock` is published from that same starved callback it arrives at roughly 14 Hz, and a 162 Hz inertial publisher against a 14 Hz clock produced runs of up to twenty-four identical stamps, of which Basalt discards every duplicate. And the `LockStep` settings key is inert on the ArduCopter path, so there is no negotiated coupling between physics and the flight controller. The `ClockSpeed` of 0.5 in `settings.json` is a mitigation of the second, bought at the price of running the simulation at half speed, and is deliberately not carried across to the Project AirSim scene configuration.
+
+### The clock is a first-class configurable object
+
+Four clock types exist, `steppable`, `real-time`, `engine-driven` and `external-clock`, documented at `docs/config_scene.md:74-99` and `docs/scene/sim_clock.md`. The workspace scene at `sitl_ws/config/airsim2/scene_ardu_copter.jsonc` uses `steppable` with `step-ns` 3000000 and `real-time-update-rate` 3000000, a 3 ms fixed step advancing at real time, which is numerically the Cosys-AirSim physics period of `physics_loop_period_ = 3000000LL`. The ratio of the two scales execution faster or slower than real time deterministically, and `pause-on-start` with the SimClock client API gives genuine pause and manual step, neither of which Cosys-AirSim offers.
+
+### The bridge publishes on the global `/clock`, which is the load-bearing difference
+
+`ros/projectairsim_ros2_cpp/src/projectairsim_ros2_cpp_node.cpp:180` creates the publisher on `/clock` as `rosgraph_msgs/msg/Clock` with `rclcpp::QoS(10)`, which is RELIABLE by default and therefore matches ArduPilot's RELIABLE `/clock` DataReader documented above. Cosys-AirSim publishes on the private `~/clock` and reaches no sim-time consumer without the scoped `SetRemap` that `sitl.launch.py` carries, so `sitl2.launch.py` needs no remap group at all and does not have one.
+
+The timer is armed only once a scene is loaded, at `:997-1000`, and each tick performs a synchronous `RequestSimTime` round trip at `:984`.
+
+### The cost of a clock tick, and the 5 ms period derived from it
+
+The bridge does not receive the clock, it asks for it, so `publish_clock_period_sec` is a choice about how often to pay for a service round trip. The default is 0.02 and the workspace sets 0.005.
+
+Nothing on the path does any work. On the client side `Client::Impl::Request` at `client/cpp/ProjectAirsimClientLib/src/Client.cpp:581-595` wraps `RequestAsync` at `:597-621`, which appends the call to `list_pending_request_entry_` and signals a condition variable at `:614`, so a dedicated sending thread wakes and transmits, at `:716-771`. The wait is condition-variable driven throughout with no polling interval anywhere, since the half-second `wait_until` at `:744` and `:805` are idle backstops that a `notify_all` preempts. On the server side the request is served by NNG asynchronous input and output with sixty four concurrent job contexts created at `core_sim/src/service_manager.cpp:114` and `:197`, so the handler runs on an NNG worker thread and never on the scene tick thread. The handler itself is `Scene::Impl::SimGetTime` at `core_sim/src/scene.cpp:665`, whose entire body is `return sim_time_;`. What remains is one TCP loopback round trip of order thirty to sixty microseconds, three thread handoffs at roughly five to twenty microseconds each, and the serialisation of a few dozen bytes. The estimate is one hundred to three hundred microseconds per call and it is dominated by scheduler latency rather than by anything the code controls, so it must be measured rather than trusted.
+
+That cost is charged to the node's executor, since `main` at `:1401-1412` calls `rclcpp::spin`, a single-threaded executor. It does not delay the sensor streams, because Project AirSim topic payloads are delivered on the client's own `TopicReceiveThreadProc` at `client/cpp/ProjectAirsimClientLib/src/Topics.cpp:262` and the handler registered by `Subscribe` at `:266-270` publishes to ROS directly from that thread. The only things a clock tick can delay are the bridge's own services and its `MoveOnPath` action. At a 5 ms period and 300 µs per call the executor duty cycle is six per cent.
+
+Three bounds fix the period. The lower bound is the simulation step, since the scene advances `sim_time_` in increments of `step-ns`, so polling faster than every 3 ms returns repeated values and buys nothing. The upper bound is the consumer, since ArduPilot's `AP_DDS_Client::update_topic` stamps every `/ap/*` message with the last `/clock` value it received and the fastest `/ap/*` publisher is `/ap/imu/experimental/data` at a measured 162 Hz, a period of 6.17 ms, so any clock period at or above 6.17 ms guarantees that some pairs of consecutive inertial samples share a stamp. Below it, in a fixed-rate model, no two consecutive samples can fall in the same clock interval and duplication is eliminated rather than merely reduced. The third bound is prudence, since the period must sit far enough inside the window that jitter in either rate does not cross an edge.
+
+Five milliseconds is the round figure inside that window, at 1.67 times the simulation step and 0.81 of the inertial period. The default of 0.02 was rejected because 50 Hz against a 162 Hz publisher yields runs of three to four identical stamps, which is a threefold improvement on 14 Hz but the same defect in kind. Ten milliseconds was rejected for the same reason with a smaller factor. Three milliseconds, matching the simulation step exactly, was rejected because it sits on the lower bound with no margin, so jitter in the wall timer against the step schedule produces duplicate reads for no benefit.
+
+### The five minute service stall, defect G15
+
+The services socket is opened with `NNG_OPT_RECVTIMEO` of 300000 ms and `NNG_OPT_REQ_RESENDTIME` disabled, at `client/cpp/ProjectAirsimClientLib/src/Client.cpp:275-279` and `:462-467`, so a request whose response is lost blocks the calling thread for five minutes with no retry. Because the caller is the single executor thread, one lost response silently freezes every bridge service and action for five minutes while the sensor streams continue normally. It is present at any clock period and is not a consequence of raising the clock rate. A five minute stall in the bridge is this, and should not be investigated as a deadlock.
+
+### The header stamping defect and the local patch, defect G12
+
+The bridge stamped every republished message with `node.get_clock()->now()`, the bridge's own clock read at republish time, and never consulted the `time_stamp` field the simulator places in the payload. Under `use_sim_time` the bridge's clock is the `/clock` topic which the bridge itself publishes, so every camera and inertial header would be quantised to the clock period and every message arriving between two clock ticks would carry an identical stamp. Basalt drops any sample whose stamp equals the previous one at `ros_ws/src/slam/src/basalt/node.cpp:190-206`, with the duplicate branch at `:203-205` logging `Received duplicate IMU, dropping`, so leaving this unaddressed would have reproduced the precise failure the migration exists to escape, merely moved from `/ap/*` onto the camera and inertial streams.
+
+The payload does carry the correct value. `core_sim/src/message/imu_message.cpp:39` serialises `time_stamp` as the first member of the msgpack map and `:135` exposes it as JSON, and the same holds for `gps_message.cpp:35`, `image_message.cpp:63` and `pose_stamped_message.cpp:38`. The value is nanoseconds.
+
+The patch adds a three-argument overload beside the existing two-argument one, which is retained unchanged so that the occupancy grid at `:958`, the one call site with no payload in scope, continues to compile and behave identically.
+
+```cpp
+std_msgs::msg::Header MakeHeader(rclcpp::Node& node,
+                                 const std::string& frame_id, const json& msg) {
+  std::int64_t time_stamp = 0;
+  if (msg.is_object() && msg.contains("time_stamp") &&
+      JsonToInt64(msg["time_stamp"], &time_stamp) && time_stamp > 0) {
+    std_msgs::msg::Header header;
+    header.stamp = rclcpp::Time(time_stamp);
+    header.frame_id = frame_id;
+    return header;
+  }
+  return MakeHeader(node, frame_id);
+}
+```
+
+`JsonToInt64` is the existing helper at `ros/projectairsim_ros2_cpp/include/projectairsim_ros2_cpp/ros2_conversion_utils.hpp:179`, reused rather than reimplemented because msgpack delivers a positive `TimeNano` as an unsigned JSON number and that helper already handles both signednesses with an overflow guard. The `time_stamp > 0` test makes a zero stamp fall back to the node clock rather than publishing an epoch stamp, which matters because a sensor that has not yet produced a sample would otherwise emit time zero and a sim-time consumer treats that as "no clock yet".
+
+Ten call sites pass the payload, namely the GPS, pose, inertial, barometer, magnetometer, lidar, radar scan, radar tracks, camera info and image publishers. The eleventh, the occupancy grid, uses the two-argument form.
+
+The patch lives in the submodule working tree with no fork and no pushed branch, so the submodule reports dirty until it is accepted upstream and a `git submodule update --force` would discard it.
+
+### What does not change
+
+ArduPilot continues to compile its `/clock` DataReader in every SITL build, gated by `AP_DDS_CLOCK_SUB_ENABLED` at `libraries/AP_DDS/AP_DDS_config.h:121-123` and armed by `--use_sim_time`. The quantisation of `/ap/*` stamps at the `/clock` interval remains a property of ArduPilot's `update_topic`, unchanged by the migration, but the interval improves from roughly 71 ms to 5 ms, which is below the 6.17 ms period of the fastest `/ap/*` publisher and therefore eliminates the duplication rather than reducing it.
+
+`use_sim_time` is deliberately not set on the bridge node itself, and after the patch it would make no difference to any sensor header if it were, because the stamp then comes from the payload rather than from the node clock.
+
+### A deliberate non-goal
+
+Once the camera and inertial streams carry true per-sample simulator stamps, the `/ap/*` inertial topic is no longer needed as a visual-inertial input at all, and the natural follow-up is to move Basalt from `/ap/imu/experimental/data` onto the simulator's own inertial topic at `.../sensors/IMU1/imu`. That is not undertaken, so that a later reader does not mistake the omission for an oversight. Note when doing it that the NED to ROS conversion at `ros/projectairsim_ros2_cpp/include/projectairsim_ros2_cpp/ros2_conversion_utils.hpp:241-254` and `:265-281` negates the second and third components, which is a NED to north-west-up flip rather than a true NED to east-north-up rotation, so the published frame is not REP 103 ENU.
+
+### Measurements outstanding
+
+None of the following can run in the development container, which has no Docker daemon. They are the checks that decide whether the derivation above holds against a running stack.
+
+| # | Action | Assertion |
+|---|---|---|
+| B2 | `ros2 topic hz /clock` | one publisher, `projectairsim_ros2_cpp_node`, at approximately 200 Hz, against 14.05 Hz measured for Cosys-AirSim on 2026-07-28 |
+| B2a | `ros2 topic delay /clock`, and separately time one thousand `GetSimTime` requests from a standalone client with the bridge stopped | measures the round trip against the 100 to 300 µs estimate. Above one millisecond the 200 Hz period is unsustainable and the period should rise to 0.006, still below 6.17 ms |
+| B2b | `ros2 topic echo /clock` for ten seconds, count distinct values | the count equals the message count, confirming 5 ms of wall time reliably crosses at least one 3 ms simulation step |
+| B3 | `ros2 topic hz` on the camera topic | record the achieved rate and correct `Camera.fps` in `sitl.yaml` from it rather than from the nominal 20 Hz |
+| B4 | count messages against unique stamps on the camera and inertial topics, using the two `ros2 topic echo` pipelines recorded above | the ratio is one after the patch, which is the direct proof that per-sample stamps survive the bridge |
+| B5 | ArduPilot console | prints `Using \clock topic for DDS timing: enabled` |

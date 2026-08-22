@@ -11,6 +11,63 @@ build_airsim_docker_image() {
     cd -
 }
 
+# Image built with a plain docker build rather than build_image because the
+# Unreal Engine base image and the prebuilt ONNX Runtime tarball are both
+# x86-64 only, so the multi-platform path is inapplicable.
+# The default is the locally built shandilya1998/nrt:unreal rather than Epic's
+# ghcr.io/epicgames/unreal-engine:dev-5.7, because the latter is Ubuntu 18.04 and
+# Project AirSim requires a 22.04 userland. See docker/scripts/build_unreal.sh.
+build_airsim2_docker_image() {
+    base_image="${1:-shandilya1998/nrt:unreal}"
+    setup_nvim_config_for_image_build "$NRT_WS/docker/airsim"
+    docker build "$NRT_WS/docker/airsim" \
+        --build-arg BASE_IMAGE="$base_image" \
+        -t shandilya1998/nrt_airsim:0.0.2
+    cleanup_nvim_config_after_image_build "$NRT_WS/docker/airsim"
+}
+
+# Lists every supported Project AirSim Unreal environment in $NRT_WS
+# $1 must be the workspace root, $NRT_WS on the host or /ws inside
+# airsim2_container,
+list_projectairsim_games() {
+    local ws_root="$1"
+    find "$ws_root/sitl_ws/src/ue5/ProjectAirSim/unreal" \
+        -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort
+}
+
+# $1 is the workspace root either $NRT_WS or /ws
+clean_projectairsim_build_artefacts() {
+    local ws_root="$1"
+    local pas_root="$ws_root/sitl_ws/src/ue5/ProjectAirSim"
+    (cd "$pas_root" && ./build.sh clean)
+    local game
+    for game in $(list_projectairsim_games "$ws_root"); do
+        rm -rf "$pas_root/unreal/$game/Binaries" \
+            "$pas_root/unreal/$game/Intermediate" \
+            "$pas_root/unreal/$game/Saved" \
+            "$pas_root/unreal/$game/Build" \
+            "$pas_root/unreal/$game/Plugins/ProjectAirSim/Binaries" \
+            "$pas_root/unreal/$game/Plugins/ProjectAirSim/Intermediate" \
+            "$pas_root/unreal/$game/Plugins/ProjectAirSim/SimLibs" \
+            "$pas_root/packages/$game"
+    done
+}
+
+# $1 is the workspace root either $NRT_WS or /ws
+copy_projectairsim_plugin_to_games() {
+    local ws_root="$1"
+    local pas_root="$ws_root/sitl_ws/src/ue5/ProjectAirSim"
+    local game plugin
+    for game in $(list_projectairsim_games "$ws_root"); do
+        [[ "$game" == "Blocks" ]] && continue
+        for plugin in ProjectAirSim Drone Rover; do
+            sudo rsync -a --delete --exclude 'Binaries' --exclude 'Intermediate' \
+                "$pas_root/unreal/Blocks/Plugins/$plugin/" \
+                "$pas_root/unreal/$game/Plugins/$plugin/"
+        done
+    done
+}
+
 # DEPRECATED
 # TODO Remove in later versions
 build_sitl_docker_image() {
@@ -29,6 +86,25 @@ start_simulation() {
 
 stop_simulation() {
     docker stop airsim_container
+}
+
+start_simulation2() {
+    environment=$1
+    xhost +local:docker
+    # Same host-side prep as djinn's `init docker dev` branch, needed here
+    # because docker/airsim/Dockerfile now carries Claude Code and agy too.
+    # Without this, a fresh workspace's missing $NRT_WS/.claude.json would be
+    # created as a directory by the -v bind mount in sitl_ws/scripts/start.sh,
+    # breaking the mount.
+    mkdir -p $NRT_WS/.claude $NRT_WS/.gemini
+    if [[ ! -f $NRT_WS/.claude.json ]]; then
+        touch $NRT_WS/.claude.json
+    fi
+    spawn_container_if_needed airsim2_container "shandilya1998/nrt_airsim:0.0.2" "x86_64"
+}
+
+stop_simulation2() {
+    docker stop airsim2_container
 }
 
 # DEPRECATED
