@@ -204,5 +204,5 @@ As we deploy more complex behaviors (e.g., dedicated planning services or standa
 
 ## 6. Miscellaneous
 *   **Unreal Engine Simulation**: High-fidelity environmental simulations are supported via the Cosys-AirSim fork at `sitl_ws/src/ue5/AirSim`, integrated directly into Unreal Engine 5 workflows (see the *Workspaces* section). Legacy UE4 assets remain under `envs/ue4/`.
-*   **LLM Companion Integration**: The `nvim-gemini-companion` Neovim plugin lives within the repository natively, specifically designed to be loaded into the `docker/dev` container to allow agentic code modifications natively within the workspace.
+*   **LLM Companion Integration**: `agentic.nvim`, configured in `docker/dev/ai.lua` and shared by both the `docker/dev` and `nrt` image chains, drives Claude Code and Antigravity CLI (`agy`) as ACP subprocesses to allow agentic code modifications natively within the workspace. See [`context/dev-ide-ai-clis.md`](context/dev-ide-ai-clis.md).
 *   **Code Organization**: Core source code for the neurorobotics toolkit resides in `ros_ws/`, utilizing strict Colcon semantics. Independent external resources and calibration toolings (like Kalibr) are maintained in `ext/`.

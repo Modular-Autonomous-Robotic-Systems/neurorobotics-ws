@@ -1,0 +1,9 @@
+- Code blocks, tables, and shell commands are exempt from the no-hard-wrap rule in §6 and follow their own formatting conventions.
+- Do not use the hyphen, the semicolon, or the colon to break sentences. Only the comma may break a sentence. These three symbols may appear solely in contexts where they are not sentence breaks, for example code, file paths, list markers, table syntax, ratios, and compound words.
+- Do not italicise or bold text unless explicitly asked to.
+- Ensure all writing follows a high level coherent structure.
+- Ensure all writing is grounded in fact and evidence, from papers, the codebase, the internet, or the context files, never from unverified recall.
+- When writing documents, ensure a flow to the document while slowly building up to the ideas to be delivered.
+- Do not use overtly long or short sentences.
+- Write in a formal and academic register with a succinct and regal flair.
+- Mimic the writing style of the user's prompts.

@@ -1,0 +1,3 @@
+- When writing or editing ANY file (Markdown context files, notes, docs, configs, prose of any kind), write each paragraph, sentence, list item, or table row as ONE COMPLETE LINE. Do NOT insert manual/hard line breaks to wrap prose at ~78/80/90 columns. Let the line run to its natural end; the viewer/editor is responsible for soft-wrapping on display.
+- Rationale: hard-wrapped prose renders as many short (~80-char) lines, which reads as if content was truncated around 90 characters. Full, unwrapped lines guarantee no truncation and keep paragraphs intact and greppable.
+- This applies to files Claude authors in this workspace. It does not require re-flowing pre-existing third-party files that are already wrapped, unless the task is specifically about that file.

@@ -11,3 +11,7 @@ ext/ardupilot
 data
 .claude
 .claude.json
+# GitHub credentials consumed as BuildKit secrets by docker/scripts/build_unreal.sh.
+# password.txt holds a personal access token and must never be committed.
+username.txt
+password.txt

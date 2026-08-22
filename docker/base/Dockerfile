@@ -43,8 +43,10 @@ RUN apt update && \
     tar \
     gzip \
     fd-find \
-    fzf \
     ripgrep \
+    procps \
+    ncurses-term \
+    ncurses-base \
     checkinstall \
     python3-dev \
     libglfw3-dev \
@@ -91,18 +93,39 @@ RUN apt update && \
     python3-pytest-timeout && \
     rm -rf /var/lib/apt/lists/*
 
+# Debian's fd-find package ships the binary as `fdfind` (name clash with an
+# unrelated `fd` package); symlink it so tools that look for the upstream
+# binary name `fd` (e.g. agentic.nvim's file picker) find it.
+RUN ln -s /usr/bin/fdfind /usr/bin/fd
 
-RUN curl -fsSL https://claude.ai/install.sh | bash
+# Without it, Neovim may struggle with special characters.
+RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
+    locale-gen
+
+# Claude Code and Antigravity CLI are amd64-only for now:
+# Installers run platform specific code causing crashes as of now
+ARG TARGETARCH
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+    curl -fsSL https://claude.ai/install.sh | bash; \
+    else \
+    echo "Skipping Claude Code install on $TARGETARCH"; \
+    fi
 # Point Claude to the bind-mounted config dir so credentials persist across containers
 ENV CLAUDE_CONFIG_DIR=/root/.claude
 
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+    curl -fsSL https://antigravity.google/cli/install.sh | bash; \
+    else \
+    echo "Skipping Antigravity CLI install on $TARGETARCH"; \
+    fi
+
 # Install Node 22 via NodeSource (matches node:22-slim used in docker/dev,
-# ensures gemini-cli and claude-code-acp version parity)
+# ensures claude-agent-acp and agy-acp version parity)
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
     rm -rf /var/lib/apt/lists/*
 
-RUN npm install -g @google/gemini-cli @zed-industries/claude-agent-acp pyright bash-language-server dockerfile-language-server-nodejs tree-sitter-cli@0.25.10
+RUN npm install -g @agentclientprotocol/claude-agent-acp agy-acp pyright bash-language-server dockerfile-language-server-nodejs tree-sitter-cli@0.25.10
 
 # --- Install Java LSP (JDTLS) ---
 # Downloading Eclipse JDTLS snapshot for headless installation
@@ -112,22 +135,38 @@ RUN mkdir -p /opt/jdtls && \
     rm /opt/jdtls/jdtls.tar.gz
 
 WORKDIR /opt
-RUN ARCH=$(uname -m) && \
-    if [ "$ARCH" = "x86_64" ]; then \
+# TARGETARCH ("amd64"/"arm64") is Docker's own naming, already declared above for the
+# Claude Code/agy gate; reused here instead of uname -m for consistency across every
+# Dockerfile in docker/ that branches on build architecture.
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
     NVIM_ASSET="nvim-linux-x86_64.tar.gz"; \
     NVIM_DIR="nvim-linux-x86_64"; \
-    elif [ "$ARCH" = "aarch64" ]; then \
+    elif [ "$TARGETARCH" = "arm64" ]; then \
     NVIM_ASSET="nvim-linux-arm64.tar.gz"; \
     NVIM_DIR="nvim-linux-arm64"; \
     else \
-    echo "Unsupported architecture: $ARCH"; exit 1; \
+    echo "Unsupported architecture: $TARGETARCH"; exit 1; \
     fi && \
-    echo "Downloading Neovim for $ARCH..." && \
+    echo "Downloading Neovim for $TARGETARCH..." && \
     curl -fLO "https://github.com/neovim/neovim/releases/download/v0.11.0/$NVIM_ASSET" && \
     tar -xzf "${NVIM_ASSET}" && \
     rm "${NVIM_ASSET}" && \
     # Rename specific arch folder to generic 'nvim' for PATH consistency
     mv "${NVIM_DIR}" nvim
+
+# fzf from upstream, not apt: fzf-lua aborts below 0.36 and recommends >= 0.53,
+# while jammy pins 0.29.0 and bookworm 0.38.0. See
+# context/dev-ide-nvim-toolchain.md §3.1.
+ARG FZF_VERSION=0.74.2
+# fzf's own release asset naming already matches TARGETARCH ("amd64"/"arm64"), so no
+# translation table is needed here, only the unsupported-architecture guard.
+RUN if [ "$TARGETARCH" != "amd64" ] && [ "$TARGETARCH" != "arm64" ]; then \
+    echo "Unsupported architecture: $TARGETARCH"; exit 1; \
+    fi && \
+    curl -fLO "https://github.com/junegunn/fzf/releases/download/v${FZF_VERSION}/fzf-${FZF_VERSION}-linux_${TARGETARCH}.tar.gz" && \
+    tar -xzf "fzf-${FZF_VERSION}-linux_${TARGETARCH}.tar.gz" -C /usr/local/bin && \
+    rm "fzf-${FZF_VERSION}-linux_${TARGETARCH}.tar.gz" && \
+    fzf --version
 
 # Update PATH to include the generic Neovim bin location
 ENV PATH="$PATH:/opt/nvim/bin"

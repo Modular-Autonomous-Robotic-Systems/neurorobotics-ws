@@ -21,6 +21,27 @@ $ ./djinn install --docker --ssh --git
 This simply automates usual installation. It builds all required docker images and installs all dependency libraries, git
 pulls all repos and builds them. Tested for Ubuntu 20.04. **BFX and its related dependencies must be manually placed within ext folder in the workspace**
 
+**Run this once, first, before any other `djinn init docker …` command:**
+
+```
+$ ./djinn init docker dev init-git-setup
+
+```
+
+The aforementioned command will ensure github submodules are setup for usage. Alternatively, running the following command has the same effect:
+
+```
+$ ./djinn init docker dev
+```
+
+If github submodule setup is to be skipped, run the following command:
+
+```
+$ ./djinn init docker dev skip-git-setup
+```
+
+This builds the `nrt:dev` IDE image, initialises and updates every git submodule, sets the workspace git identity, symlinks the AI directive files (`CLAUDE.md`/`GEMINI.md`) across the workspace root and its submodules, and logs in Claude Code and Antigravity CLI. The submodule checkout and directive symlinks it performs are shared, host-side state that every later container reads through the same workspace mount, so doing this once, first, makes every later container's own setup a no-op for that part of the work. Every subsequent call, to refresh the dev image, drops the trailing argument: `./djinn init docker dev`.
+
 To build Skynet only and Skynet-ROS Images and start their containers run:
 ```
 $ ./djinn init docker

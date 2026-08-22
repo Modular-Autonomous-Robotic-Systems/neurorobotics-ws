@@ -10,10 +10,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends ros-humble-ros-
     rm -rf /var/lib/apt/lists/*
 
 # install ros2 packages
+ARG TARGETARCH
+# ros-humble-desktop-full pulls in the simulation ROS 2 variant, which depends only on
+# the ros_ign_* Ignition Gazebo bridge packages, and the ROS buildfarm does not reliably
+# publish that arm64 leg, so apt-get install ros-humble-desktop-full can fail on arm64
+# with "Unable to locate package" even when it has previously succeeded.
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ros-humble-ros-base=0.10.0-1* && \
-    apt-get install -y --no-install-recommends ros-humble-desktop=0.10.0-1* &&  \
-    apt-get install -y --no-install-recommends ros-humble-desktop-full=0.10.0-1* && \
+    apt-get install -y --no-install-recommends ros-humble-ros-base && \
+    apt-get install -y --no-install-recommends ros-humble-desktop &&  \
+    if [ "$TARGETARCH" = "amd64" ]; then \
+    apt-get install -y --no-install-recommends ros-humble-desktop-full; \
+    else \
+    apt-get install -y --no-install-recommends ros-humble-perception; \
+    fi && \
     rm -rf /var/lib/apt/lists/*
 
 RUN apt-get update && apt-get install --no-install-recommends -y \

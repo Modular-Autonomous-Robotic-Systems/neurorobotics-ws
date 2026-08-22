@@ -7,11 +7,14 @@ return {
             provider = "claude-agent-acp",
 
             acp_providers = {
-                ["gemini-acp"] = {
-                    command = "gemini",
-                },
                 ["claude-agent-acp"] = {
                     command = "claude-agent-acp",
+                },
+                ["agy-acp"] = {
+                    name = "Antigravity ACP",
+                    command = "agy-acp",
+                    args = {},
+                    env = {},
                 },
             },
 
@@ -112,7 +115,7 @@ return {
                 function()
                     require("agentic").switch_provider()
                 end,
-                desc = "AI: Switch provider (Gemini/Claude)",
+                desc = "AI: Switch provider (Claude/Antigravity)",
             },
 
             -- Stop generation

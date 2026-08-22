@@ -1,5 +1,7 @@
 FROM shandilya1998/nrt:pangolin
 
+ARG TARGETARCH
+
 WORKDIR /deps
 
 RUN apt-get update && apt-get install -y libepoxy-dev libjpeg-dev libtiff5-dev libpng-dev libcamera-tools libboost-dev openssl \
@@ -24,13 +26,13 @@ RUN apt-get update && apt-get install -y gstreamer-1.0 \
     gstreamer1.0-pulseaudio
 
 # Raspberry Pi specific dependencies
-RUN if [ "$(uname -m)" = "aarch64" ]; then \
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
     apt-get update && apt-get install -y libraspberrypi-bin v4l-utils; \
     fi
 
 WORKDIR /deps
 
-RUN if [ "$(uname -m)" = "aarch64" ]; then \
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
     apt-get update && apt-get install -y rng-tools && \
     (rngd -r /dev/urandom -o /dev/random 2>/dev/null &) && \
     git clone https://github.com/raspberrypi/libcamera.git && \
@@ -38,15 +40,16 @@ RUN if [ "$(uname -m)" = "aarch64" ]; then \
     git checkout v0.5.0+rpt20250429 && \
     meson setup build --buildtype=release -Dpipelines=rpi/vc4,rpi/pisp -Dipas=rpi/vc4,rpi/pisp -Dv4l2=true -Dgstreamer=enabled -Dtest=false -Dlc-compliance=disabled -Dcam=disabled -Dqcam=disabled -Ddocumentation=disabled -Dpycamera=enabled -Dpython.bytecompile=-1 && \
     ninja -C build install; \
-    elif [ "$(uname -m)" = "x86_64" ]; then \
+    elif [ "$TARGETARCH" = "amd64" ]; then \
     git clone https://github.com/libcamera-org/libcamera.git && \
     cd libcamera && \
     meson setup build --buildtype=release -Dv4l2=true -Dgstreamer=enabled -Dtest=false && \
     ninja -C build install; \
     fi	
 
-RUN if [ "$(uname -m)" = "aarch64" ]; then \
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
     cd /deps && \
+    apt update && apt-get install -y libavdevice-dev && \
     git clone https://github.com/raspberrypi/rpicam-apps.git && \
     cd rpicam-apps && \
     git checkout 2437ab244390f222c814840b0132427ac3b13979 && \
@@ -58,7 +61,7 @@ RUN if [ "$(uname -m)" = "aarch64" ]; then \
 
 # TODO check if python installation for rpi-libcamera and rpi-kms and picamera2 are required
 
-RUN if [ "$(uname -m)" = "x86_64" ]; then \
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
     apt-get update && apt-get install -y ros-humble-octomap ros-humble-octomap-msgs ros-humble-octomap-msgs-dbgsym ros-humble-octomap-ros ros-humble-octomap-dbgsym ros-humble-octomap-server ros-humble-octomap-rviz-plugins ros-humble-octomap-rviz-plugins-dbgsym ros-humble-octomap-ros-dbgsym ros-humble-octomap-server-dbgsym ros-humble-octomap-mapping; \
     fi
 
