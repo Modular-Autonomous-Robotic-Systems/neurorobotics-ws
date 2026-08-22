@@ -61,6 +61,7 @@ elif [[ "$1" == "init" ]]; then
     export $(grep -v '^#' $config_file | xargs)
     echo "Github Email: $userEmail"
     echo "Dockerhub ID: $userName"
+    sudo chmod -R a+rwX $NRT_WS
     if [[ "$2" == "docker" ]]; then
         platform="linux/amd64,linux/arm64"
         mode="base"
@@ -121,8 +122,10 @@ elif [[ "$1" == "init" ]]; then
                     else
                         iexec init_container "source /ws/scripts/docker-setup.sh"
                     fi
+                    sudo chmod -R a+rwX $NRT_WS
                 else
                     iexec init_container "source /ws/scripts/docker-setup.sh"
+                    sudo chmod -R a+rwX $NRT_WS
                 fi
                 iexec init_container "source /ws/scripts/helpers/ai.sh && \
                     sync_directive_pair /ws && \
@@ -139,6 +142,49 @@ elif [[ "$1" == "init" ]]; then
             elif [[ "$3" == "airsim" ]]; then
                 echo "============ BUILDING SIMULATION Image ============="
                 build_airsim_docker_image
+            elif [[ "$3" == "airsim2" ]]; then
+                # $4 selects the rebuild mode. Empty skips the engine build
+                # entirely and only rebuilds the wrapper on the default base
+                # image, `force-all` sets UNREAL_FORCE_REBUILD=1 so
+                # build_unreal.sh rebuilds unconditionally, `rebuild-base` runs
+                # build_unreal.sh without forcing it, so its own existence
+                # guard decides whether anything actually rebuilds, and any
+                # other value, e.g. `rebuild-wrapper`, skips build_unreal.sh
+                # and rebuilds only the wrapper. $5 optionally overrides the
+                # Unreal base image passed to the wrapper build, e.g.
+                # `djinn init docker airsim2 rebuild-wrapper ghcr.io/epicgames/unreal-engine:dev-5.7`.
+                # It is read only when $4 is non-empty.
+                if [[ -n "$4" ]]; then
+                    echo "============ BUILDING PROJECT AIRSIM Image ============="
+                    rebuild=false
+                    if [[ "$4" == "force-all" ]]; then
+                        export UNREAL_FORCE_REBUILD=1
+                        rebuild=true
+                    elif [[ "$4" == "rebuild-base" ]]; then
+                        rebuild=true
+                    else
+                        echo "Not rebuilding base image"
+                    fi
+                    if [[ "$rebuild" == true ]]; then
+                        if ! "$NRT_WS/docker/scripts/build_unreal.sh"; then
+                            echo "Unreal Engine image build failed, not building Project AirSim on a missing base."
+                            exit 1
+                        fi
+                    fi
+                    echo "============ BUILDING UNREAL ENGINE Image ============="
+                    # Run rather than source, so that the script's set -e and set -x
+                    # cannot leak into djinn. It is a no-op when the image exists.
+                    echo "============ BUILDING PROJECT AIRSIM Image ============="
+                    if [[ -n "$5" ]]; then
+                        echo "Building with base image: $5"
+                        build_airsim2_docker_image "$5"
+                    else
+                        build_airsim2_docker_image
+                    fi
+                else
+                    build_airsim2_docker_image
+                fi
+                sudo chmod -R a+rw sitl_ws/src/ue5/
             elif [[ "$3" == "sitl" ]]; then
                 # This step assumes that `djinn init docker nrt` has been run
                 echo "============ BUILDING SIMULATION Image ============="
@@ -191,6 +237,12 @@ elif [[ "$1" == "up" ]]; then
                 start_simulation $3
             else
                 start_simulation "nature"
+            fi
+        elif [[ "$2" == "airsim2" ]]; then
+            if [[ -n "$3" ]]; then
+                start_simulation2 $3
+            else
+                start_simulation2 "nature"
             fi
         elif [[ "$2" == "sitl_bridge" ]]; then
             spawn_container_if_needed sitl_bridge_container shandilya1998/nrt:$VERSION
@@ -258,6 +310,28 @@ elif [[ "$1" == "build" ]]; then
             spawn_container_if_needed sitl_bridge_container "shandilya1998/nrt:$VERSION"
             iexec_ros sitl_bridge_container "/ws/ardu_ws/scripts/build.sh"
             iexec_ros sitl_bridge_container "/ws/sitl_ws/scripts/build.sh"
+        elif [[ "$2" == "airsim2" ]]; then
+            spawn_container_if_needed airsim2_container "shandilya1998/nrt_airsim:0.0.2"
+            if [[ ! -n "$3" ]]; then
+                echo "Need to provide build options to choose from"
+            else
+                if [[ "$3" == "pa-all" ]]; then
+                    iexec airsim2_container "cd /ws/sitl_ws/src/ue5/ProjectAirSim/ && source build.sh all"
+                elif [[ "$3" == "pa-clean-build" ]]; then
+                    iexec airsim2_container "cd /ws/sitl_ws/src/ue5/ProjectAirSim/ && source build.sh clean"
+                    iexec airsim2_container "cd /ws/sitl_ws/src/ue5/ProjectAirSim/ && source build.sh all"
+                elif [[ "$3" == "pa-rebuild" ]]; then
+                    iexec airsim2_container "cd /ws/sitl_ws/src/ue5/ProjectAirSim/ && source build.sh rebuild"
+                elif [[ "$3" == "game" ]]; then
+                    # $4 the project, $5 the client configuration (default Development),
+                    # $6 "true" or "false" (default "false") for rebuild_plugin, forwarded
+                    # to build_airsim2_game.sh exactly. See sitl_ws/scripts/build_airsim2_game.sh.
+                    project="${4:-StonePineForest}"
+                    config="${5:-Development}"
+                    plugin_build_mode="${6:-build}"
+                    iexec airsim2_container "cd /ws && /ws/sitl_ws/scripts/build_airsim2_game.sh $project $config $plugin_build_mode"
+                fi
+            fi
         fi
     fi
 
@@ -310,11 +384,60 @@ elif [[ "$1" == "start" ]]; then
             gnome-terminal --title "AirSim" -- bash -c "$NRT_WS/sitl_ws/scripts/run_airsim.sh;"
             sleep 3
 
-            gnome-terminal --title "SITL Bridge" -- bash -c "$NRT_WS/ardu_ws/scripts/run_ardupilot_airsim_ros_sitl.sh; exec bash"
+            gnome-terminal --title "SITL Bridge" -- bash -c "$NRT_WS/ardu_ws/scripts/run_ardupilot_airsim_ros_sitl.sh;"
             gnome-terminal --title "QGroundControl" -- bash -c "$NRT_WS/ext/QGroundControl.AppImage"
         fi
         # stop_sitl_container
         # stop_simulation
+    elif [[ "$2" == "sitl2" ]]; then
+        if [[ -n "$3" ]]; then
+            # The SLAM invocations are identical to the `sitl` ones, because
+            # sitl2.launch.py remaps the Project AirSim camera onto the
+            # Cosys-AirSim topic name. That identity is what makes the two
+            # simulators comparable on the same SLAM inputs.
+            if [[ "$3" == "orbslam3" ]]; then
+                echo "Starting ORBSLAM3"
+                spawn_container_if_needed nrt_container "shandilya1998/nrt:$VERSION"
+                iexec_sitl2 nrt_container "export DISPLAY=:1 && ros2 launch slam orbslam3.launch.py log-level:=INFO camera-topic:=/airsim_node/Copter/front_center_Scene/image settings-file-path:=/ws/ros_ws/src/slam/orb_slam3/config/Monocular/sitl.yaml vocab-file-path:=/ws/ros_ws/src/slam/orb_slam3/Vocabulary/ORBvoc.txt.bin"
+                iexec nrt_container "ps -eawf | grep orbslam3 | grep -v grep | awk '{print \$2}' | xargs -r kill -9"
+            elif [[ "$3" == "basalt" ]]; then
+                echo "Starting Basalt"
+                spawn_container_if_needed nrt_container "shandilya1998/nrt:$VERSION"
+                # SLAM only. The simulator, ffmpeg encoder and managed recorder
+                # are already running from `djinn start sitl2`
+                iexec_sitl2 nrt_container "export DISPLAY=:1 && ros2 launch controllers basalt_slam_test.launch.py \
+                    log-level:=INFO \
+                    ap_status_topic_name:=/ap/status \
+                    camera-topic:=/airsim_node/Copter/front_center_Scene/image \
+                    calibration-file-path:=/ws/ros_ws/src/slam/ext/basalt/data/sitl_calib.json \
+                    configuration-file-path:=/ws/ros_ws/src/slam/ext/basalt/data/sitl_config_vo.json \
+                    slam-type:=VISLAM \
+                    use-sim-time:=True \
+                    use-visualisation:=True \
+                    imu-topic:=/ap/imu/experimental/data"
+                iexec nrt_container "ps -eawf | grep basalt | grep -v grep | awk '{print \$2}' | xargs -r kill -9"
+            else
+                echo "Incorrect option for SITL application"
+            fi
+        else
+            echo "starting Project AirSim sitl"
+            start_simulation2 "nature"
+            echo "Starting Ardupilot"
+            spawn_container_if_needed sitl_bridge_container "shandilya1998/nrt:$VERSION"
+            LOG_TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
+            # Created container-side because the host user does not own $NRT_WS/logs,
+            # which is a bind mount into sitl_bridge_container; chmod a+rwx so the
+            # host-side gnome-terminal processes below can write into it.
+            iexec sitl_bridge_container "mkdir -p /ws/logs/$LOG_TIMESTAMP && chmod a+rwx /ws/logs/$LOG_TIMESTAMP"
+            gnome-terminal --title "ProjectAirSim" -- bash -c "$NRT_WS/sitl_ws/scripts/run_airsim.sh airsim2 2>&1 | tee $NRT_WS/logs/$LOG_TIMESTAMP/airsim.log;"
+            # Ten seconds rather than three, because the bridge constructor
+            # throws on a failed connect, so a premature connection is fatal
+            # rather than merely delayed as it is on the Cosys-AirSim path.
+            sleep 10
+
+            gnome-terminal --title "SITL Bridge" -- bash -c "$NRT_WS/ardu_ws/scripts/run_ardupilot_airsim_ros_sitl.sh airsim2 2>&1 | tee $NRT_WS/logs/$LOG_TIMESTAMP/sitl_bridge.log;"
+            gnome-terminal --title "QGroundControl" -- bash -c "$NRT_WS/ext/QGroundControl.AppImage"
+        fi
     elif [[ "$2" == "ardupilot_target_recorder" ]]; then
         iexec_ros_ap "ros2 launch controllers "
     elif [[ "$2" == "basalt" ]]; then
@@ -338,11 +461,29 @@ elif [[ $1 == "kill" ]]; then
             terminate_process "QGroundControl"
             iexec nrt_container "ps -ef | grep airsim_ros_pkgs | grep -v grep | awk '{print \$2}' | xargs -r kill -9"
         fi
+    elif [[ "$2" == "sitl2" ]]; then
+        if [[ -n "$3" ]]; then
+            if [[ "$3" == "basalt" ]]; then
+                iexec nrt_container "ps -ef | grep basalt_slam_node | grep -v grep | awk '{print \$2}' | xargs -r kill -9"
+                iexec nrt_container "ps -ef | grep basalt_slam_controller | grep -v grep | awk '{print \$2}' | xargs -r kill -9"
+                iexec nrt_container "ps -ef | grep basalt_slam_test.launch.py | grep -v grep | awk '{print \$2}' | xargs -r kill -9"
+                iexec nrt_container "ps -ef | grep ros2cli.daemon.daemonize | grep -v grep | awk '{print \$2}' | xargs -r kill -9"
+            fi
+        else
+            echo "Killing Project AirSim SITL processes"
+            iexec sitl_bridge_container "ps -ef | grep projectairsim_ros2_cpp | grep -v grep | awk '{print \$2}' | xargs -r kill -9"
+            stop_sitl_container
+            stop_simulation2
+            terminate_process "QGroundControl"
+        fi
     elif [[ $2 == "airsim" ]]; then
         if [[ ! -z "$last_run_sitl_env" ]]; then
             ps -eawf | grep "$last_run_sitl_env" | grep -v grep | awk '{print $2}' | xargs -r kill -9
         fi
         iexec nrt_container "ps -eawf | grep airsim_lib | grep -v grep | awk '{print \$2}' | xargs -r kill -9"
+    elif [[ $2 == "airsim2" ]]; then
+        # The game binary is named after the project rather than airsim_lib.
+        iexec nrt_container "ps -eawf | grep StonePineForest | grep -v grep | awk '{print \$2}' | xargs -r kill -9"
     elif [[ "$2" == "gqc" ]]; then
         ps -ef | grep QGroundControl | grep -v grep | awk '{print $2}' | xargs -r kill -9
     elif [[ "$2" == "orbslam3" ]]; then
@@ -353,6 +494,8 @@ elif [[ "$1" == "down" ]]; then
     if [[ -n "$2" ]]; then
         if [[ "$2" == "airsim" ]]; then
             docker stop airsim_container && docker rm airsim_container
+        elif [[ "$2" == "airsim2" ]]; then
+            docker stop airsim2_container && docker rm airsim2_container
         else
             docker stop "${2}_container"
         fi

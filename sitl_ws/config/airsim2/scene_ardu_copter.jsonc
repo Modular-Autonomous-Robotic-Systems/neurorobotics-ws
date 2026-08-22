@@ -1,0 +1,47 @@
+{
+  "id": "StonePineForestArduCopter",
+  "actors": [
+    {
+      "type": "robot",
+      "name": "Copter",
+      // PLACEHOLDER. Replace with the PlayerStart location of
+      // Mountains_Map converted by north=X/100, east=Y/100, down=-Z/100,
+      // per the procedure in plans/project-airsim-integration.md §3.11.2.
+      // "0 0 0" is the Unreal world origin and not the PlayerStart, so
+      // StonePineForest will spawn the copter in the void or inside terrain
+      // until this is set. Validation check B6a catches it.
+      "origin": {
+        "xyz": "161.70 -59.90 30.60",
+        "rpy-deg": "0 0 0"
+      },
+      "start-landed": true,
+      "robot-config": "robot_ardu_copter.jsonc"
+    }
+  ],
+  "clock": {
+    "type": "steppable",
+    "step-ns": 3000000,
+    "real-time-update-rate": 9000000,
+    "pause-on-start": false
+  },
+  "home-geo-point": {
+    "latitude": -35.363261,
+    "longitude": 149.165230,
+    "altitude": 583.0
+  },
+  // initialize-ids false skips WorldSimApi::InitSegmentationIDs, which
+  // otherwise walks every UStaticMeshComponent/USkinnedMeshComponent/
+  // ALandscapeProxy in the loaded UObjects (slow in a foliage-heavy level
+  // like StonePineForest, per the engine's own g.TimeoutForBlockOnRenderFence
+  // comment in UnrealSimLoader.cpp) and sets bRenderCustomDepth=true on each,
+  // which then costs an extra full-scene CustomDepth render pass every frame.
+  // No sensor here requests image-type 3 (segmentation), so none of that
+  // buys anything; ignore-existing/use-owner-name are moot once
+  // initialize-ids is false since InitSegmentationIDs returns immediately.
+  "segmentation": {
+    "initialize-ids": false,
+    "ignore-existing": false,
+    "use-owner-name": true
+  },
+  "scene-type": "UnrealNative"
+}

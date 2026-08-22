@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
     ros-humble-geographic-msgs \
     ros-humble-ament-black \
     ros-humble-launch-pytest \
+    ros-humble-mavros-msgs \
     python3-geopy \
     python3-geographiclib \
     socat && \
